@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/board.tsx","./src/components/dice.tsx","./src/pages/bigscreen.tsx","./src/pages/host.tsx","./src/pages/mobile.tsx","./src/types/index.ts","./src/utils/socket.ts"],"version":"5.9.3"}
