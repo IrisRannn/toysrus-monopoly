@@ -34,36 +34,56 @@ const ONLINE_TEAMS = ['east', 'west', 'central', 'north']
 // luckyEffect: 'roll_again' | 'advance_2' | 'advance_3' | 'back_2'
 // ---------------------------------------------------------------------------
 const BOARD = [
-  { id: 0,  type: 'start',    x: 8.5,  y: 86,   label: '起点' },
-  { id: 1,  type: 'quiz',     x: 17.8, y: 86,   label: '反斗知识' },
-  { id: 2,  type: 'normal',   x: 27.5, y: 86,   label: '2' },
-  { id: 3,  type: 'quiz',     x: 37.2, y: 86,   label: '反斗知识' },
-  { id: 4,  type: 'quiz',     x: 46.2, y: 86,   label: '反斗知识' },
-  { id: 5,  type: 'quiz',     x: 55.8, y: 86,   label: '反斗知识' },
-  { id: 6,  type: 'lucky',    x: 65.0, y: 86,   label: '再掷一次', luckyEffect: 'roll_again' },
-  { id: 7,  type: 'quiz',     x: 73.8, y: 86,   label: '反斗知识' },
-  { id: 8,  type: 'quiz',     x: 83.5, y: 86,   label: '反斗知识' },
-  { id: 9,  type: 'quiz',     x: 89.5, y: 71.5, label: '反斗知识' },
-  { id: 10, type: 'quiz',     x: 89.5, y: 55.5, label: '反斗知识' },
-  { id: 11, type: 'lucky',    x: 89.5, y: 39.0, label: '前进三格', luckyEffect: 'advance_3' },
-  { id: 12, type: 'quiz',     x: 89.5, y: 23.5, label: '反斗知识' },
-  { id: 13, type: 'quiz',     x: 79.5, y: 23.5, label: '反斗知识' },
-  { id: 14, type: 'quiz',     x: 69.8, y: 23.5, label: '反斗知识' },
-  { id: 15, type: 'challenge',x: 69.8, y: 39.0, label: '超级挑战' },
-  { id: 16, type: 'quiz',     x: 69.8, y: 55.5, label: '反斗知识' },
-  { id: 17, type: 'quiz',     x: 55.5, y: 71.5, label: '反斗知识' },
-  { id: 18, type: 'lucky',    x: 46.5, y: 71.5, label: '后退两格', luckyEffect: 'back_2' },
-  { id: 19, type: 'quiz',     x: 38.2, y: 71.5, label: '反斗知识' },
-  { id: 20, type: 'quiz',     x: 27.5, y: 55.5, label: '反斗知识' },
-  { id: 21, type: 'quiz',     x: 27.5, y: 39.0, label: '反斗知识' },
-  { id: 22, type: 'quiz',     x: 27.5, y: 23.5, label: '反斗知识' },
-  { id: 23, type: 'quiz',     x: 17.8, y: 23.5, label: '反斗知识' },
-  { id: 24, type: 'normal',   x: 8.5,  y: 23.5, label: '24' },
-  { id: 25, type: 'quiz',     x: 8.5,  y: 39.0, label: '反斗知识' },
-  { id: 26, type: 'quiz',     x: 8.5,  y: 55.5, label: '反斗知识' },
-  { id: 27, type: 'end',      x: 8.5,  y: 71.5, label: '终点' },
+  { id: 0,  type: 'start',    x: 11.5, y: 87.5, label: '起点' },
+  { id: 1,  type: 'normal',   x: 20.0, y: 87.5, label: '1' },
+  { id: 2,  type: 'quiz',     x: 29.0, y: 87.5, label: '反斗知识' },
+  { id: 3,  type: 'normal',   x: 38.5, y: 87.5, label: '3' },
+  { id: 4,  type: 'quiz',     x: 47.5, y: 87.5, label: '反斗知识' },
+  { id: 5,  type: 'normal',   x: 56.5, y: 87.5, label: '5' },
+  { id: 6,  type: 'lucky',    x: 65.5, y: 87.5, label: '再掷一次', luckyEffect: 'roll_again' },
+  { id: 7,  type: 'normal',   x: 73.5, y: 87.5, label: '7' },
+  { id: 8,  type: 'quiz',     x: 82.0, y: 87.5, label: '反斗知识' },
+  { id: 9,  type: 'normal',   x: 90.5, y: 70.0, label: '9' },
+  { id: 10, type: 'normal',   x: 90.5, y: 55.5, label: '10' },
+  { id: 11, type: 'lucky',    x: 90.5, y: 40.5, label: '玩心加速·前进三格', luckyEffect: 'advance_3' },
+  { id: 12, type: 'normal',   x: 88.5, y: 25.5, label: '12' },
+  { id: 13, type: 'normal',   x: 81.0, y: 25.5, label: '13' },
+  { id: 14, type: 'normal',   x: 73.5, y: 25.5, label: '14' },
+  { id: 15, type: 'quiz',     x: 71.0, y: 41.5, label: '反斗知识' },
+  { id: 16, type: 'normal',   x: 71.0, y: 56.5, label: '16' },
+  { id: 17, type: 'normal',   x: 56.5, y: 65.5, label: '17' },
+  { id: 18, type: 'lucky',    x: 47.5, y: 65.5, label: '后退两格', luckyEffect: 'back_2' },
+  { id: 19, type: 'normal',   x: 39.0, y: 65.5, label: '19' },
+  { id: 20, type: 'lucky',    x: 29.0, y: 56.5, label: '玩心加速·前进三格', luckyEffect: 'advance_3' },
+  { id: 21, type: 'normal',   x: 29.0, y: 41.5, label: '21' },
+  { id: 22, type: 'normal',   x: 29.0, y: 25.5, label: '22' },
+  { id: 23, type: 'normal',   x: 20.0, y: 25.5, label: '23' },
+  { id: 24, type: 'lucky',    x: 11.5, y: 25.5, label: '玩心加速·前进三格', luckyEffect: 'advance_3' },
+  { id: 25, type: 'normal',   x: 11.5, y: 41.5, label: '25' },
+  { id: 26, type: 'normal',   x: 11.5, y: 56.5, label: '26' },
+  { id: 27, type: 'end',      x: 11.5, y: 70.5, label: '终点' },
 ]
 const BOARD_LEN = BOARD.length // 28
+
+// 加权骰子：根据当前位置看未来1-6格，特殊格（反斗知识/幸运格）对应点数权重更高，
+// 但保留随机性——不是"必中特殊格"，只是更巧地落上去，不刻意。
+const DICE_WEIGHT_SPECIAL = 0.30  // 落在 quiz/lucky 的点数权重
+const DICE_WEIGHT_NORMAL = 0.05   // 落在普通格的点数权重
+function weightedDiceValue(currentPos) {
+  const weights = []
+  for (let d = 1; d <= 6; d++) {
+    const target = Math.min(currentPos + d, BOARD_LEN - 1)
+    const cell = BOARD[target]
+    weights.push((cell.type === 'quiz' || cell.type === 'lucky') ? DICE_WEIGHT_SPECIAL : DICE_WEIGHT_NORMAL)
+  }
+  const sum = weights.reduce((a, b) => a + b, 0)
+  let r = Math.random() * sum
+  for (let d = 1; d <= 6; d++) {
+    r -= weights[d - 1]
+    if (r <= 0) return d
+  }
+  return 6
+}
 
 // ---------------------------------------------------------------------------
 // 题库（可自行扩充）。reward: 普通答题 3，超级挑战 5。
@@ -355,7 +375,7 @@ io.on('connection', (socket) => {
     const genA = game.generation
     setTimeout(() => {
       if (game.generation !== genA) return
-      game.dice.value = 1 + Math.floor(Math.random() * 6)
+      game.dice.value = weightedDiceValue(game.teams[game.currentTeam].position)
       game.dice.rolling = false
       game.status = 'dice_result'
       setEvent('dice', `${currentTeamName()} 投出 ${game.dice.value} 点`)
