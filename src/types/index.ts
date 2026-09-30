@@ -1,4 +1,4 @@
-export type TeamKey = 'red' | 'blue' | 'yellow' | 'green'
+export type TeamKey = 'east' | 'west' | 'central' | 'north' | 'shanghai'
 
 export type CellType = 'start' | 'normal' | 'quiz' | 'challenge' | 'lucky' | 'end'
 
@@ -21,6 +21,12 @@ export interface TeamState {
   members: number
 }
 
+export interface Representative {
+  name: string
+  years: string
+  claimed: boolean
+}
+
 export interface Question {
   id: number
   type: 'normal' | 'challenge'
@@ -36,9 +42,12 @@ export interface GameState {
   totalRounds: number
   currentTeam: TeamKey
   turnIndex: number
-  dice: { value: number; rolling: boolean }
+  dice: { value: number; rolling: boolean; source: 'online' | 'physical' }
+  diceSource: 'online' | 'physical'
   teams: Record<TeamKey, TeamState>
-  representatives: Record<TeamKey, { name: string; years: string }>
+  representatives: Record<TeamKey, Representative>
+  teamNames: Record<TeamKey, string>
+  teamColors: Record<TeamKey, string>
   currentQuestion: Question | null
   votes: { A: number; B: number; C: number; D: number }
   quizTimerEndsAt: number

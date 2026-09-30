@@ -10,26 +10,29 @@ html, body, #root {
   overflow: hidden;
 }
 
-/* 棋子 */
+/* 棋子（5队版：更大、直接显示队伍名，远距离可识别） */
 .piece {
   position: absolute;
-  width: 4.2%;
+  width: 6%;
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   transform: translate(-50%, -50%);
   transition: left 0.32s cubic-bezier(.34,1.56,.64,1), top 0.32s cubic-bezier(.34,1.56,.64,1);
   box-shadow: 0 6px 14px rgba(0,0,0,.35), inset 0 -6px 10px rgba(0,0,0,.25), inset 0 4px 6px rgba(255,255,255,.5);
   display: flex; align-items: center; justify-content: center;
-  color: #fff; font-weight: 900; font-size: clamp(10px, 1.4vw, 22px);
+  color: #fff; font-weight: 900;
+  font-size: clamp(11px, 1.3vw, 24px);
   z-index: 20;
   border: 3px solid rgba(255,255,255,.85);
+  line-height: 1.1;
+  text-shadow: 0 1px 3px rgba(0,0,0,.5);
 }
 .piece .dot {
   position: absolute; bottom: -8%; right: -8%;
   background: #fff; color: #333;
-  width: 45%; height: 45%; border-radius: 50%;
+  width: 40%; height: 40%; border-radius: 50%;
   display:flex;align-items:center;justify-content:center;
-  font-size: 0.7em; font-weight: 800;
+  font-size: 0.6em; font-weight: 800;
   border: 2px solid rgba(0,0,0,.2);
 }
 
@@ -37,6 +40,13 @@ html, body, #root {
 .piece-blue   { background: radial-gradient(circle at 30% 30%, #74c0fc, #1971c2); }
 .piece-yellow { background: radial-gradient(circle at 30% 30%, #ffe066, #f08c00); color:#7a4a00; }
 .piece-green  { background: radial-gradient(circle at 30% 30%, #8ce99a, #2b8a3e); }
+
+/* 5队版棋子颜色 */
+.piece-east    { background: radial-gradient(circle at 30% 30%, #ff6b6b, #c92a2a); }
+.piece-west    { background: radial-gradient(circle at 30% 30%, #8ce99a, #2b8a3e); }
+.piece-central { background: radial-gradient(circle at 30% 30%, #ffe066, #f08c00); color:#7a4a00; }
+.piece-north   { background: radial-gradient(circle at 30% 30%, #74c0fc, #1971c2); }
+.piece-shanghai{ background: radial-gradient(circle at 30% 30%, #e599f7, #9c36b5); }
 
 /* 骰子 */
 .dice {

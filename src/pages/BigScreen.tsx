@@ -4,9 +4,7 @@ import { Socket } from 'socket.io-client'
 import Board from '../components/Board'
 import Dice from '../components/Dice'
 
-const TEAM_COLOR: Record<TeamKey, string> = {
-  red: '#e03131', blue: '#1971c2', yellow: '#f08c00', green: '#2b8a3e',
-}
+const TEAM_ORDER: TeamKey[] = ['east', 'west', 'central', 'north', 'shanghai']
 
 export default function BigScreen({ state }: { state: GameState; socket: Socket }) {
   const [now, setNow] = useState(Date.now())
@@ -18,6 +16,12 @@ export default function BigScreen({ state }: { state: GameState; socket: Socket 
   const remain = Math.max(0, Math.ceil((state.quizTimerEndsAt - now) / 1000))
   const revealed = state.revealAnswer ? JSON.parse(state.revealAnswer) : null
   const curTeam = state.currentTeam
+  const curColor = state.teamColors[curTeam]
+  const curName = state.teamNames[curTeam]
+  const rep = state.representatives[curTeam]
+  const isShanghai = curTeam === 'shanghai'
+  const showDice = ['rolling', 'dice_result', 'awaiting_host_move', 'moving'].includes(state.status)
+  const awaitingHostMove = state.status === 'awaiting_host_move' && isShanghai
 
   return (
     <div style={{
@@ -35,46 +39,52 @@ export default function BigScreen({ state }: { state: GameState; socket: Socket 
         borderRadius: 999, fontSize: 22, fontWeight: 700, zIndex: 40,
       }}>
         <span>第 {state.round} / {state.totalRounds} 轮</span>
-        <span style={{ color: TEAM_COLOR[curTeam], background:'#fff', padding:'2px 12px', borderRadius:999 }}>
-          {state.teams[curTeam].name} 行动中
+        <span style={{ color: curColor, background:'#fff', padding:'2px 12px', borderRadius:999 }}>
+          {curName} 行动中
         </span>
-        {state.representatives[curTeam].name && (
+        {rep.claimed && rep.name && (
           <span style={{ fontSize: 16, opacity: .9 }}>
-            工龄代表：{state.representatives[curTeam].name}（{state.representatives[curTeam].years}）
+            代表：{rep.name}{rep.years ? `（${rep.years}）` : ''}
           </span>
+        )}
+        {isShanghai && (
+          <span style={{ fontSize: 16, opacity: .9, color: '#ffd43b' }}>🎲 实体骰子</span>
         )}
       </div>
 
-      {/* 右侧排名小条 */}
+      {/* 右侧5队实时位置 */}
       <div style={{
         position: 'absolute', top: 80, right: 16, zIndex: 40,
         background: 'rgba(0,0,0,.55)', color: '#fff', padding: '12px 16px',
-        borderRadius: 12, fontSize: 16, minWidth: 180,
+        borderRadius: 12, fontSize: 16, minWidth: 190,
       }}>
         <div style={{ fontWeight: 800, marginBottom: 6, textAlign: 'center' }}>实时位置</div>
-        {(['red','blue','yellow','green'] as TeamKey[]).map(t => (
+        {TEAM_ORDER.map(t => (
           <div key={t} style={{ display:'flex', justifyContent:'space-between', margin:'3px 0' }}>
-            <span style={{ color: TEAM_COLOR[t], fontWeight: 700 }}>{state.teams[t].name}</span>
+            <span style={{ color: state.teamColors[t], fontWeight: 700 }}>{state.teamNames[t]}</span>
             <span>第 {state.teams[t].position} 格 {state.teams[t].locked && '🏁'}</span>
           </div>
         ))}
       </div>
 
       {/* 骰子区 */}
-      {(state.status === 'rolling' || state.status === 'rolled') && (
+      {showDice && (
         <div style={{
           position: 'absolute', right: 60, bottom: 60, zIndex: 50,
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
         }} className="pop-in">
           <div style={{ color:'#fff', fontSize: 28, fontWeight: 900, textShadow:'0 2px 8px rgba(0,0,0,.4)' }}>
-            {state.teams[curTeam].name}
+            {curName}
           </div>
+          {isShanghai && <div style={{ color:'#ffd43b', fontSize: 18, fontWeight: 700 }}>现场实体骰子</div>}
           <Dice value={state.dice.value} rolling={state.dice.rolling} />
           {!state.dice.rolling && state.dice.value > 0 && (
             <div className="big-bounce" style={{
-              background:'#fff', color:'#e03131', fontSize: 40, fontWeight: 900,
+              background:'#fff', color: curColor, fontSize: 40, fontWeight: 900,
               padding: '4px 24px', borderRadius: 12,
-            }}>+{state.dice.value}</div>
+            }}>
+              {awaitingHostMove ? `${state.dice.value} 点 · 等待主持人` : `+${state.dice.value}`}
+            </div>
           )}
         </div>
       )}
@@ -98,7 +108,9 @@ export default function BigScreen({ state }: { state: GameState; socket: Socket 
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <div className="pop-in" style={{
-            background: '#fff', borderRadius: 24, padding: 32, width: 'min('+ (state.currentQuestion.type==='challenge' ? '900px' : '820px') +', 90%)',
+            background: '#fff', borderRadius: 24, padding: 32,
+            width: state.currentQuestion.type === 'challenge' ? '900px' : '820px',
+            maxWidth: '90%',
             boxShadow: '0 20px 60px rgba(0,0,0,.4)',
             border: state.currentQuestion.type === 'challenge' ? '6px solid #9c36b5' : '6px solid #2b8a3e',
           }}>
@@ -108,6 +120,9 @@ export default function BigScreen({ state }: { state: GameState; socket: Socket 
                 color:'#fff', padding:'4px 14px', borderRadius:999, fontWeight:800,
               }}>
                 {state.currentQuestion.type === 'challenge' ? '🔥 超级挑战' : '🧠 反斗知识'}
+              </span>
+              <span style={{ fontSize: 18, fontWeight: 800, color: curColor }}>
+                {curName} 作答中
               </span>
               {state.status === 'quiz_open' && (
                 <span style={{ fontSize: 40, fontWeight: 900, color: remain <= 5 ? '#e03131' : '#333' }}>
@@ -140,7 +155,7 @@ export default function BigScreen({ state }: { state: GameState; socket: Socket 
                     {showResult && (
                       <div className="bar-row" style={{ marginTop: 8 }}>
                         <div className="bar-track">
-                          <div className="bar-fill" style={{ width: pct + '%', background: TEAM_COLOR[curTeam] }}>
+                          <div className="bar-fill" style={{ width: pct + '%', background: curColor }}>
                             {v}票 · {pct}%
                           </div>
                         </div>
@@ -177,18 +192,18 @@ export default function BigScreen({ state }: { state: GameState; socket: Socket 
           <div className="big-bounce" style={{ fontSize: 72, fontWeight: 900, marginBottom: 24, textShadow: '0 4px 20px rgba(0,0,0,.3)' }}>
             🏆 最终排名
           </div>
-          <div style={{ display: 'flex', gap: 24, alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: 24, alignItems: 'flex-end', flexWrap: 'wrap', justifyContent: 'center' }}>
             {state.rankings.map((r: any, i: number) => (
               <div key={r.team} className="pop-in" style={{
                 background: 'rgba(255,255,255,.18)', borderRadius: 20, padding: '24px 28px',
                 textAlign: 'center', backdropFilter: 'blur(8px)',
                 animationDelay: (i * 0.2) + 's',
-                minWidth: 180,
+                minWidth: 160,
                 transform: i === 0 ? 'scale(1.15)' : 'none',
                 border: i === 0 ? '3px solid #ffd43b' : '3px solid rgba(255,255,255,.3)',
               }}>
                 <div style={{ fontSize: 40 }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '🎖️'}</div>
-                <div style={{ fontSize: 28, fontWeight: 900 }}>{r.name}</div>
+                <div style={{ fontSize: 26, fontWeight: 900 }}>{r.name}</div>
                 <div style={{ fontSize: 18, opacity: .9, marginTop: 6 }}>第 {r.position} 格</div>
                 <div style={{ fontSize: 22, fontWeight: 800, marginTop: 10, color: '#ffd43b' }}>
                   抽奖名额：{r.lotterySlots}
