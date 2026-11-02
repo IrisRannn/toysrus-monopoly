@@ -64,7 +64,7 @@ docker build --secret id=proxy_ca,src="$CODEX_PROXY_CERT" -t monopoly .
 
 ## 原图、题目与现场演练
 
-本次会话的红色20格棋盘图片尚未作为可下载文件提供；旧橙色28格背景 `public/board.png` 已删除；`board-game-deploy.zip` 是未用于运行的旧归档。请将原始红色JPG/PNG放入 `public/assets/游戏背景图.jpg`（PNG用 `.png`），或在主持人端“棋盘校准”上传。上传只校验文件类型和大小，不修改原始字节。
+红色20格棋盘已从用户上传到GitHub的 `public/board-20.jpg` 接入，原样副本在 `public/assets/游戏背景图.jpg`；旧橙色28格背景 `public/board.png` 已删除；`board-game-deploy.zip` 是未用于运行的旧归档。后续更换背景时，可将原始JPG/PNG放入 `public/assets/游戏背景图.jpg`（PNG用 `.png`），或在主持人端“棋盘校准”上传。上传只校验文件类型和大小，不修改原始字节。
 
 初始20个坐标来自任务参考表，保存在 `shared/tilePositions.js`。上传原图后拖动编号校准，保存到房间并同步三端；支持JSON导入导出。正式展示使用同一个16:9图片容器定位棋子，不用viewport坐标。
 

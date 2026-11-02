@@ -2184,3 +2184,57 @@ td .pill {
   margin: 0;
   border-bottom: 1px solid #eee7dd;
 }
+/* Keep the supplied board's anniversary emblem and right-hand tiles visible. */
+.screen-focus {
+  left: 12%;
+  top: 34%;
+  width: 22%;
+}
+.screen-ranking {
+  left: 24%;
+  top: auto;
+  bottom: 2.8%;
+  width: 52%;
+  padding: 0.45cqw 0.7cqw;
+}
+.screen-ranking > .eyebrow {
+  display: none;
+}
+.screen-ranking .ranking-list {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+}
+.screen-ranking .rank-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 0.2cqw 0.35cqw;
+  padding: 0 0.6cqw;
+  border-bottom: 0;
+  border-right: 1px solid #e9bd7b33;
+}
+.screen-ranking .rank-row:last-child {
+  border-right: 0;
+}
+.screen-ranking .rank-row > b {
+  grid-row: span 2;
+  width: 1.3cqw;
+  font-size: 0.85cqw;
+}
+.screen-ranking .rank-row > .team-dot {
+  grid-row: span 2;
+}
+.screen-ranking .rank-row > strong {
+  font-size: 0.7cqw;
+}
+.screen-ranking .rank-row > span:last-child {
+  grid-column: 3;
+  font-size: 0.6cqw;
+}
+.screen-footer {
+  bottom: 0.8%;
+}
+.event-toast {
+  left: 38%;
+  top: 61%;
+  width: 23%;
+}

@@ -29,7 +29,7 @@ Node.js 20.20.2已验证。前端5180，后端3001。开发主持人口令 `loca
 
 两份Word参考文档已保存在 `public/assets/`。按用户明确要求采用20格文档，不混入旧三轮制。
 
-**红色20格原图仍需补充文件。** 会话贴图尚无本地可读取文件；旧的橙色28格背景 `public/board.png` 已按用户要求删除。将原图置于 `public/assets/游戏背景图.jpg` / `.png`，或在“棋盘校准”原样上传。未导入时页面明确提示缺图。坐标初值位于 `shared/tilePositions.js`，支持拖动、精确数字、JSON保存/导入/导出，原图导入后需校准验收。
+**红色20格原图已接入。** GitHub上传原件保留在 `public/board-20.jpg`，项目使用的 `public/assets/游戏背景图.jpg` 与原件逐字节一致（1920×1080），未裁切或重绘。旧的橙色28格背景已删除。坐标位于 `shared/tilePositions.js`，已对照原图核对，仍支持拖动、精确数字及JSON导入导出。
 
 正式题库为空，没有伪造品牌知识题。题库管理可增删改、按格选题、随机不重复抽题、CSV/Excel批量导入与下载模板。`public/assets/questions-template.csv` 可直接使用，Excel模板由主持人后台生成。
 

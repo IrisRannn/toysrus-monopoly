@@ -44,15 +44,22 @@ with sync_playwright() as p:
     expect(host.locator('.team-overview').get_by_text('1 人加入 · 1 人在线')).to_have_count(5)
     screen=page();screen.set_viewport_size({'width':1920,'height':1080});screen.goto(BASE+f'/screen?room={code}')
     expect(screen.locator('.game-token')).to_have_count(5)
-    boxes=screen.locator('.game-token').evaluate_all('(nodes)=>nodes.map(n=>({left:n.getBoundingClientRect().left,right:n.getBoundingClientRect().right}))')
-    assert all(boxes[i]['right']<boxes[i+1]['left'] for i in range(4)),boxes
+    screen.wait_for_function("document.querySelector('.board-original')?.naturalWidth === 1920 && document.querySelector('.board-original')?.naturalHeight === 1080")
+    assert not screen.locator('.asset-missing').count()
+    screen.screenshot(path='/workspace/monopoly-screen-ready.png')
+    boxes=screen.locator('.game-token').evaluate_all('(nodes)=>nodes.map(n=>({left:n.getBoundingClientRect().left,right:n.getBoundingClientRect().right,top:n.getBoundingClientRect().top,bottom:n.getBoundingClientRect().bottom}))')
+    def no_overlap(rects):
+        return all(a['right']<=b['left'] or b['right']<=a['left'] or a['bottom']<=b['top'] or b['bottom']<=a['top'] for i,a in enumerate(rects) for b in rects[i+1:])
+    assert no_overlap(boxes),boxes
     assert screen.evaluate('document.documentElement.scrollHeight === innerHeight')
     print('PASS five teams join, host counts, five named non-overlapping tokens, 16:9 screen without scroll',flush=True)
     for team in ['east','central','north','west','shanghai']:
         api('manualMove',{'team':team,'position':1,'reason':'独立测试房间同格验证'})
     expect(screen.locator('.game-token[data-position="1"]')).to_have_count(5)
-    same_tile=screen.locator('.game-token').evaluate_all('(nodes)=>nodes.map(n=>({left:n.getBoundingClientRect().left,right:n.getBoundingClientRect().right}))')
-    assert all(same_tile[i]['right']<same_tile[i+1]['left'] for i in range(4))
+    same_tile=screen.locator('.game-token').evaluate_all('(nodes)=>nodes.map(n=>({left:n.getBoundingClientRect().left,right:n.getBoundingClientRect().right,top:n.getBoundingClientRect().top,bottom:n.getBoundingClientRect().bottom}))')
+    assert no_overlap(same_tile),same_tile
+    assert max(r['right'] for r in same_tile)-min(r['left'] for r in same_tile)<192, 'same-tile group must stay compact'
+    screen.screenshot(path='/workspace/monopoly-same-tile.png')
     def normalized():
         return screen.locator('.game-token').evaluate_all('(nodes)=>{const r=document.querySelector(".board-canvas").getBoundingClientRect();return nodes.map(n=>{const b=n.getBoundingClientRect();return [(b.left-r.left)/r.width,(b.top-r.top)/r.height]})}')
     original=normalized()

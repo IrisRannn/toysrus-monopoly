@@ -104,14 +104,24 @@ export default function Board({
             (t) => t.position === team.position,
           ),
           index = mates.findIndex((t) => t.id === team.id);
-        const dx =
-            mates.length > 1 ? (index - (mates.length - 1) / 2) * 4.3 : 0,
-          dy = 0;
+        const columns = Math.min(3, mates.length),
+          rows = Math.ceil(mates.length / columns),
+          row = Math.floor(index / columns),
+          rowSize = Math.min(columns, mates.length - row * columns),
+          scale = mates.length > 3 ? 0.62 : mates.length > 1 ? 0.74 : 1,
+          gap = mates.length > 3 ? 2.7 : 3.2,
+          dx = ((index % columns) - (rowSize - 1) / 2) * gap,
+          dy = (row - (rows - 1) / 2) * 5.8,
+          label =
+            mates.length > 1
+              ? team.name.replace("中南区", "中南").replace("上海SSC", "上海")
+              : team.name;
         return (
           <div
             key={team.id}
             data-team={team.id}
             data-position={team.position}
+            title={team.name}
             className={
               "game-token " +
               (state.currentTeam === team.id && state.status === "running"
@@ -123,12 +133,18 @@ export default function Board({
               {
                 left: `${point.x + dx}%`,
                 top: `${point.y + dy}%`,
+                width: `${3.9 * scale}%`,
                 "--team-color": team.color,
               } as React.CSSProperties
             }
           >
-            <span className="token-crown">{team.finishOrder ? "♛" : "★"}</span>
-            <span className="token-name">{team.name}</span>
+            <span
+              className="token-crown"
+              style={{ fontSize: `${1.8 * scale}cqw` }}
+            >
+              {team.finishOrder ? "♛" : "★"}
+            </span>
+            <span className="token-name">{label}</span>
             <span className="token-base" />
           </div>
         );
