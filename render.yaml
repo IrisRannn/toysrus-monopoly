@@ -2,9 +2,22 @@ services:
   - type: web
     name: toysrus-monopoly
     runtime: node
-    plan: free
-    buildCommand: npm install && npm run build
+    plan: starter
+    buildCommand: npm ci --include=dev --registry=https://registry.npmjs.org --replace-registry-host=registry.npmmirror.com && npm run build
     startCommand: npm start
+    healthCheckPath: /api/health
+    disk:
+      name: monopoly-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
     envVars:
       - key: NODE_VERSION
-        value: 20
+        value: 20.20.2
+      - key: HOST_PASSWORD
+        sync: false
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: DATA_FILE
+        value: /opt/render/project/src/data/game.sqlite
+      - key: NODE_ENV
+        value: production

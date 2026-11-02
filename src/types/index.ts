@@ -1,61 +1,118 @@
-export type TeamKey = 'east' | 'west' | 'central' | 'north' | 'shanghai'
-
-export type CellType = 'start' | 'normal' | 'quiz' | 'challenge' | 'lucky' | 'end'
-
-export interface BoardCell {
-  id: number
-  type: CellType
-  x: number // 百分比
-  y: number // 百分比
-  label: string
-  luckyEffect?: 'roll_again' | 'advance_2' | 'advance_3' | 'back_2'
+export type TeamId = "east" | "central" | "north" | "west" | "shanghai";
+export interface Team {
+  id: TeamId;
+  name: string;
+  color: string;
+  position: number;
+  representativeId: string | null;
+  representativeName: string | null;
+  finishOrder: number | null;
+  finishedAt: number | null;
+  rank?: number;
+  members: number;
+  online: number;
 }
-
-export interface TeamState {
-  name: string
-  position: number
-  bonusSteps: number
-  locked: boolean
-  correct: number
-  answered: number
-  members: number
+export interface Tile {
+  id: number;
+  name: string;
+  type: "normal" | "reward" | "penalty" | "quiz" | "finish";
+  effect: number;
+  icon: string;
 }
-
-export interface Representative {
-  name: string
-  years: string
-  claimed: boolean
+export interface Position {
+  id: number;
+  x: number;
+  y: number;
 }
-
 export interface Question {
-  id: number
-  type: 'normal' | 'challenge'
-  reward: number
-  question: string
-  options: { A: string; B: string; C: string; D: string }
-  answer: 'A' | 'B' | 'C' | 'D'
+  id: string;
+  tile: number;
+  text: string;
+  options: Record<string, string>;
+  answer?: string;
+  explanation?: string;
 }
-
+export interface Employee {
+  id: string;
+  nickname: string;
+  team: TeamId;
+  joinedAt: number;
+  removed: boolean;
+  online: boolean;
+}
+export interface GameEvent {
+  id: string;
+  type: string;
+  text: string;
+  at: number;
+  actor: string;
+}
+export interface Quiz {
+  id: string;
+  question: Question;
+  endsAt: number;
+  submitted: number;
+  eligible: number;
+  myAnswer: string | null;
+  counts?: Record<string, number>;
+  answers?: Record<string, { option: string; at: number }>;
+  result: null | {
+    counts: Record<string, number>;
+    submitted: number;
+    majority: string | null;
+    tie: boolean;
+    correct: boolean;
+    correctAnswer: string;
+  };
+}
+export interface Prize {
+  name: string;
+  value: number;
+  quantity: number;
+  teams: TeamId[];
+  players?: { id: string; nickname: string; team: TeamId }[];
+}
 export interface GameState {
-  status: string
-  round: number
-  totalRounds: number
-  currentTeam: TeamKey
-  turnIndex: number
-  dice: { value: number; rolling: boolean; source: 'online' | 'physical' }
-  diceSource: 'online' | 'physical'
-  teams: Record<TeamKey, TeamState>
-  representatives: Record<TeamKey, Representative>
-  teamNames: Record<TeamKey, string>
-  teamColors: Record<TeamKey, string>
-  currentQuestion: Question | null
-  votes: { A: number; B: number; C: number; D: number }
-  quizTimerEndsAt: number
-  revealAnswer: string
-  luckyEffect: string | null
-  lastEvent: { type: string; text: string; ts: number } | null
-  questionStats: any[]
-  rankings: any
-  board: BoardCell[]
-  totalCells: number
+  code: string;
+  version: number;
+  status: string;
+  phase: string;
+  round: number;
+  turnId: number;
+  currentTeam: TeamId;
+  order: TeamId[];
+  teams: Record<TeamId, Team>;
+  dice: null | { value: number; source: string; at: number };
+  movement: null | {
+    team: TeamId;
+    from: number;
+    to: number;
+    kind: string;
+    startedAt: number;
+    duration: number;
+  };
+  lastTile: number | null;
+  positions: Position[];
+  settings: { answerSeconds: number; autoAdvance: boolean };
+  rankings: Team[];
+  events: GameEvent[];
+  serverTime: number;
+  pausedAt: number | null;
+  onlineCount: number;
+  quiz: Quiz | null;
+  me: Employee | null;
+  players?: Employee[];
+  questions?: Question[];
+  usedQuestions?: string[];
+  questionUsage?: {
+    questionId: string;
+    tile: number;
+    team: TeamId;
+    round: number;
+    turnId: number;
+    at: number;
+  }[];
+  canUndo?: boolean;
+  undoLabel?: string;
+  prizes?: { needsConfirmation: boolean; prizes: Prize[] };
 }

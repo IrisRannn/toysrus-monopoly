@@ -1,112 +1,67 @@
-# 玩具反斗城 20周年全员大富翁（年会互动游戏 · 5队版）
+# Toys“R”Us 20周年全员互动大富翁
 
-三端实时同步：**大屏投屏端** + **主持人控制端** + **员工手机投票端**。
-技术栈：React + Vite + TypeScript + Express + Socket.IO。
+真实多人在线的20格游戏。沿用 React + Vite + TypeScript + Express + Socket.IO；默认使用持久化SQLite，可切换 PostgreSQL/Supabase。游戏状态由可信后端统一维护，刷新、断线重连与服务重启均从数据库恢复。
 
-## 1. 目录说明
+- `/host`：房间二维码、队伍/员工管理、代表指定、上海SSC实体骰子、题库、答题控制、日志与安全撤销、抽奖资格、棋盘校准。
+- `/player`：房间号/扫码加入、固定队伍与昵称、代表投骰、全队答题、截止前改答、实时状态。
+- `/screen`：16:9原图棋盘、独立具名棋子、骰子/移动/事件动画、答题与最终排名。
+- `/`：三端入口。旧玩家路由 `/m` 兼容。
 
-```
-board-game/
-├── public/board.png          # 你提供的棋盘设计图（底图）
-├── server/index.js           # Node + Socket.IO 游戏服务端（单一状态源）
-├── sim.mjs                   # 棋盘落点概率模拟（反斗知识触发率约 78%）
-├── src/
-│   ├── App.tsx               # 按 URL 路由到三端
-│   ├── pages/
-│   │   ├── BigScreen.tsx     # 大屏端（/）
-│   │   ├── Host.tsx          # 主持人端（/host）
-│   │   └── Mobile.tsx        # 员工手机端（/m）
-│   ├── components/           # Board / Piece / Dice
-│   ├── types/                # TypeScript 类型
-│   └── utils/socket.ts       # socket.io-client 连接
-└── package.json
-```
-
-## 2. 本地运行
+## 运行
 
 ```bash
-cd board-game
-npm install
+npm ci --include=dev --registry=https://registry.npmjs.org --replace-registry-host=registry.npmmirror.com
+cp .env.example .env
 npm run dev
 ```
 
-启动后：
+Node.js 20.20.2已验证。前端5180，后端3001。开发主持人口令 `local-host-change-me`；生产必须配置至少12位的 `HOST_PASSWORD`。创建房间后在控制台打开大屏；扫码地址使用局域网IP或HTTPS域名。
 
-| 端 | 地址 | 用途 |
-|---|---|---|
-| 大屏端 | http://localhost:5180/ | 年会现场投屏（16:9） |
-| 主持人端 | http://localhost:5180/host | 主持人笔记本电脑 |
-| 员工手机端 | http://**<电脑局域网IP>**:5180/m | 员工扫码/输入网址 |
+## 本次规则
 
-> 手机要和电脑连同一个 Wi-Fi。把 `localhost` 换成电脑的局域网 IP（例如 `192.168.x.x`）。
-> 查看 IP：macOS 上 `ipconfig getifaddr en0`。
-> 若 5180 被占用，改 `vite.config.ts` 里的 `port`。
+默认顺序：东区（蓝）→ 中南区（绿）→ 北区（金黄）→ 西区（紫）→ 上海SSC（青蓝），开场前可改。0表示棋盘外起点；20格、无限轮次，无积分。四队代表的骰子由后端均匀生成1–6；上海SSC由主持人点击六个点数按钮录入。奖励/惩罚二次移动不触发连锁。先到终点先排名，已完成队伍跳过；允许提前结束，未完成同格并列。
 
-## 3. 环境变量
+答题格：04/08/12/16答对+3；15答对直达20。最高单项票为集体选择，不要求过半；最高票并列和无人提交未答对。每人每题只保留一份有效答案，截止前可改。未公布前玩家/大屏无法读取正确答案、个人答题记录或实时选项票数；主持人可查看完整数据。
 
-复制 `.env.example` 为 `.env`（可选）：
+抽奖资格：一等奖500元×1，第1名队伍；二等奖300元×2，前3名队伍；三等奖120元×5，全体员工。并列影响资格时由主持人确认并留日志。提供候选名单导出，不自动抽奖。
 
-```
-PORT=3001                 # 游戏服务端端口
-VITE_SOCKET_URL=          # 前端连接的服务端地址；留空则自动连当前 host
-```
+## 素材与正式题库
 
-部署到服务器时，把 `VITE_SOCKET_URL` 改成 `https://你的域名`，然后：
+两份Word参考文档已保存在 `public/assets/`。按用户明确要求采用20格文档，不混入旧三轮制。
+
+**红色20格原图仍需补充文件。** 会话贴图尚无本地可读取文件；旧的橙色28格背景 `public/board.png` 已按用户要求删除。将原图置于 `public/assets/游戏背景图.jpg` / `.png`，或在“棋盘校准”原样上传。未导入时页面明确提示缺图。坐标初值位于 `shared/tilePositions.js`，支持拖动、精确数字、JSON保存/导入/导出，原图导入后需校准验收。
+
+正式题库为空，没有伪造品牌知识题。题库管理可增删改、按格选题、随机不重复抽题、CSV/Excel批量导入与下载模板。`public/assets/questions-template.csv` 可直接使用，Excel模板由主持人后台生成。
+
+## 验证
 
 ```bash
+npm run typecheck
+npm run lint
+npm test
 npm run build
-npm start
+# 已启动开发服务并已安装Python Playwright + Chromium时：
+python tests/browser.py
+# 已迁移的专用测试PostgreSQL，可额外执行真实行锁测试：
+TEST_DATABASE_URL='postgresql://…' npm test
 ```
 
-## 4. 五支队伍与两种投骰方式
+测试覆盖全部20格效果、三端权限、10人投票、改答/错答/并列/空票、终极挑战、冲线与排名、10次并发投骰、持久化/重连、撤销、真实CSV/XLSX与候选名单安全导出。PostgreSQL测试在未配置专用测试连接时明确跳过；浏览器脚本创建独立测试房间，不使用正式品牌题库。
 
-| 队伍 | 颜色 | 投骰方式 |
-|---|---|---|
-| 东区 | 红 | 线上电子骰子：代表在手机端点【投骰子】，服务端生成 1-6，**棋子自动移动** |
-| 西区 | 绿 | 同上 |
-| 中南区 | 黄 | 同上 |
-| 北区 | 蓝 | 同上 |
-| 上海Office | 紫 | 实体骰子：现场掷出后，代表在手机端选择实际点数并【确认实体骰子结果】，**主持人点【移动上海Office +X】后才移动** |
+生产构建与启动：`npm run build`、`npm start`。完整数据库/RLS、TLS、持久化磁盘、单实例部署、Docker及现场演练说明见 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)。Supabase项目未配置时不声称已连接；只需服务器端 `DATABASE_URL`，浏览器不需要Supabase密钥。
 
-- 每轮每队只有 1 名投骰子代表：员工在手机端点【成为本轮投骰子代表】，先到先得（服务端控制，下轮自动重置）。
-- 线上四区：代表投骰 → 自动走棋 → 自动判断落点，主持人全程不介入。
-- 上海Office：实体骰子结果提交后锁定，主持人确认才移动；录错可由主持人【修改实体骰子结果】。
+## 模块
 
-## 5. 游戏流程（主持人）
+```
+shared/gameRules.js           20格规则、队伍、投票与排名
+shared/tilePositions.js       棋盘百分比坐标
+server/lib/engine.js          可信状态机、权限、撤销、过滤视图
+server/lib/store.js           SQLite / PostgreSQL事务与审计
+server/lib/import.js          CSV / XLSX导入与安全导出
+server/index.js              房间API、身份校验、Socket.IO、持久定时流程
+src/pages/                   主持人、玩家、大屏
+src/components/Board.tsx     16:9原图、具名棋子、校准模式
+supabase/migrations/          PostgreSQL表、索引和RLS
+```
 
-1. 大屏打开 `/`，主持人电脑打开 `/host`。
-2. 点 **【开始游戏】**，每轮顺序：东区 → 西区 → 中南区 → 北区 → 上海Office。
-3. 线上四区：员工代表在手机端投骰，自动走棋；落点后：
-   - 反斗知识格（约 78% 概率触发）：【开始答题】→ 全员投票 15 秒 →【结束投票】（或倒计时自动）→【公布答案】→ 答对自动 +3 格。
-   - 超级挑战格：答对自动 +5 格。
-   - 幸运格：点【触发幸运效果】自动执行（前进 2/3 格或再投一次）。
-   - 普通/起点格：直接【下一队】。
-4. 上海Office：代表提交实体骰子点数 → 主持人点【移动上海Office +X】→ 走棋后同上处理。
-5. 3 轮 × 5 队 = 15 回合后，自动出最终排名与抽奖名额（25 / 15 / 10 / 10 / 10 = 70）。
-
-应急按钮：手动移动棋子（±1/±3）、手动指定答案、修改实体骰子结果、重置游戏。
-
-## 6. 自定义
-
-- **队伍名**：改 `server/index.js` 里的 `TEAM_NAMES`。
-- **题库**：改 `server/index.js` 里的 `QUESTIONS` 数组（id / type=normal|challenge / question / options / answer / reward）。
-- **棋盘坐标 / 格子类型**：改 `server/index.js` 里的 `BOARD` 数组（x/y 为相对于棋盘图的百分比，type=start|quiz|challenge|lucky|normal|end）。
-- **工龄代表**：员工手机端自行填写姓名与工龄。
-
-## 7. 已实现功能
-
-- [x] 棋盘图片作为底图 + 棋子覆盖层（不重画棋盘）
-- [x] 28 格统一数据（坐标 / 类型 / 特殊效果）
-- [x] 5 队棋子（东区红 / 西区绿 / 中南区黄 / 北区蓝 / 上海Office紫），棋子旁直接显示队名
-- [x] 线上四区电子骰子：代表手机端投骰，服务端生成点数，自动走棋
-- [x] 上海Office 实体骰子：手机端提交点数，主持人确认后移动
-- [x] 每轮每队 1 名代表（先到先得，服务端控制）
-- [x] 骰子滚动动画、棋子弹跳移动动画
-- [x] 3 轮 × 5 队流程
-- [x] 反斗知识格 / 超级挑战格 / 幸运格（前进2/3/再投一次）
-- [x] 手机端选队、单次投票（仅本队可投）、实时柱状图、平票视为失败
-- [x] 答对 +3 / 挑战 +5 自动移动（上海Office 的答题奖励同样自动）
-- [x] 最终排名 + 抽奖名额公布（25/15/10/10/10）
-- [x] 手动修正棋子、手动指定答案、修改实体骰子结果、重置
-- [x] 反斗知识触发率经 ≥1000 局模拟调优至约 78%（sim.mjs）
-- [x] 服务端定时器带游戏代号守卫（重开一局不会残留上一局动画/倒计时）
+浏览器localStorage只存房间身份凭证，不存权威游戏进度。主持人恢复登录会使旧主持人凭证失效。SQLite需要单进程持久化卷，PostgreSQL写入使用房间锁；实时广播目前也要求单应用实例。对外部署使用HTTPS并保管数据库连接与主持人口令。

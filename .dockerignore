@@ -1,0 +1,9 @@
+.git
+node_modules
+dist
+data
+.env
+.env.*.local
+board-game-deploy.zip
+playwright-results
+coverage

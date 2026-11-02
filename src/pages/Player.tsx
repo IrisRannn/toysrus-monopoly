@@ -1,0 +1,237 @@
+import { useEffect, useState } from "react";
+import { useGame, useNow } from "../hooks/useGame";
+import {
+  Brand,
+  Network,
+  ErrorBar,
+  RoomForm,
+  Countdown,
+  Status,
+} from "../components/Common";
+import { phaseNames, tileName } from "../config";
+import Dice from "../components/Dice";
+export default function Player() {
+  const game = useGame("player"),
+    { state: s } = game,
+    [choice, setChoice] = useState("");
+  const now = useNow(game.offset);
+  useEffect(
+    () => setChoice(s?.quiz?.myAnswer || ""),
+    [s?.quiz?.id, s?.quiz?.myAnswer],
+  );
+  if (!game.room || !game.credential) return <RoomForm role="player" />;
+  if (!s)
+    return (
+      <main className="entry">
+        <section className="entry-card">
+          <Brand />
+          <h2>正在连接房间 {game.room}</h2>
+          <ErrorBar game={game} />
+          <button onClick={game.logout}>重新加入</button>
+        </section>
+      </main>
+    );
+  const me = s.me!,
+    team = s.teams[me.team],
+    myTurn = s.currentTeam === me.team,
+    quiz = s.quiz,
+    canAnswer =
+      myTurn &&
+      s.phase === "answering" &&
+      s.status === "running" &&
+      !!quiz &&
+      now < quiz.endsAt,
+    representative = team.representativeId === me.id,
+    canRoll =
+      myTurn &&
+      s.phase === "awaiting_dice" &&
+      s.status === "running" &&
+      representative &&
+      me.team !== "shanghai";
+  return (
+    <main
+      className="player-app"
+      style={{ "--team-color": team.color } as React.CSSProperties}
+    >
+      <header className="mobile-header">
+        <Brand small />
+        <Network connected={game.connected} />
+      </header>
+      <ErrorBar game={game} />
+      <section className="player-hero">
+        <div className="eyebrow">
+          房间 {s.code} · 第 {s.round} 轮
+        </div>
+        <h1>
+          {team.name}
+          <span>你好，{me.nickname}</span>
+        </h1>
+        <div className="player-progress">
+          <strong>{String(team.position).padStart(2, "0")}</strong>
+          <span>
+            / 20 格<br />
+            {tileName(team.position)}
+          </span>
+          <i>{team.finishOrder ? "🏁" : "✦"}</i>
+        </div>
+        <div className="progress-track">
+          <span style={{ width: team.position * 5 + "%" }} />
+        </div>
+        <p>
+          {team.members} 位队友 · {team.online} 人在线
+        </p>
+      </section>
+      <section className="mobile-card">
+        <Status state={s} />
+        <h2>
+          {s.status === "finished"
+            ? "本场旅程已完成"
+            : s.status === "paused"
+              ? "稍作休息，童心继续"
+              : myTurn
+                ? "轮到我们向前！"
+                : `${s.teams[s.currentTeam].name} 正在行动`}
+        </h2>
+        <p className="muted">
+          {team.finishOrder
+            ? `已获得第${team.finishOrder}名，继续为大家加油！`
+            : phaseNames[s.phase]}
+        </p>
+        {s.status === "running" &&
+          myTurn &&
+          s.phase === "awaiting_dice" &&
+          !team.finishOrder && (
+            <>
+              {me.team === "shanghai" ? (
+                <div className="physical-note">
+                  <span>🎲</span>
+                  <b>请在现场投掷实体骰子</b>
+                  <p>由主持人录入点数，棋子随后自动移动。</p>
+                </div>
+              ) : (
+                <>
+                  {!team.representativeId ? (
+                    <button
+                      className="primary wide"
+                      disabled={game.busy || !game.connected}
+                      onClick={() => void game.cmd("claimRepresentative")}
+                    >
+                      成为本回合投骰代表
+                    </button>
+                  ) : (
+                    <p>
+                      本回合代表：<b>{team.representativeName}</b>
+                      {representative ? "（你）" : ""}
+                    </p>
+                  )}
+                  {canRoll && (
+                    <button
+                      className="primary wide roll-button"
+                      disabled={game.busy || !game.connected}
+                      onClick={() => void game.cmd("roll")}
+                    >
+                      🎲 投骰子
+                    </button>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        {myTurn && s.dice && (
+          <div className="player-dice">
+            <Dice
+              value={s.dice.value}
+              rolling={s.phase === "rolling" && s.status === "running"}
+            />
+            <p>
+              {s.dice.source === "physical" ? "主持人录入实体骰子" : "本队骰子"}{" "}
+              · {s.dice.value} 点
+            </p>
+          </div>
+        )}
+      </section>
+      {quiz && myTurn && (
+        <section className="mobile-card quiz-card">
+          <div className="section-heading">
+            <span className="eyebrow">
+              全队一起答 · {quiz.submitted} / {quiz.eligible} 人
+            </span>
+            <Countdown state={s} offset={game.offset} />
+          </div>
+          <h2>{quiz.question.text}</h2>
+          <div className="answer-options">
+            {Object.entries(quiz.question.options).map(([key, text]) => (
+              <button
+                key={key}
+                disabled={!canAnswer}
+                className={choice === key ? "selected" : ""}
+                onClick={() => setChoice(key)}
+              >
+                <b>{key}</b>
+                <span>{text}</span>
+                {choice === key && <span>✓</span>}
+              </button>
+            ))}
+          </div>
+          {canAnswer ? (
+            <>
+              <button
+                className="primary wide"
+                disabled={!choice || game.busy || !game.connected}
+                onClick={() => void game.cmd("answer", { option: choice })}
+              >
+                {quiz.myAnswer ? "更新我的答案" : "提交答案"}
+              </button>
+              <p className="muted">
+                {quiz.myAnswer
+                  ? `已提交 ${quiz.myAnswer}，截止前可修改。`
+                  : "每人仅保留一份有效答案，截止后锁定。"}
+              </p>
+            </>
+          ) : (
+            <p className="muted">
+              {s.phase === "quiz_closed"
+                ? "答案已锁定，等待主持人公布。"
+                : s.status === "paused"
+                  ? "游戏暂停，暂不可提交。"
+                  : ""}
+            </p>
+          )}
+          {quiz.result && (
+            <div
+              className={
+                "quiz-result " + (quiz.result.correct ? "success" : "")
+              }
+            >
+              <b>
+                {quiz.result.correct
+                  ? "答对了，向前出发！"
+                  : "未答对，下一次再接再厉。"}
+              </b>
+              <p>
+                正确答案 {quiz.result.correctAnswer} · 本队选择{" "}
+                {quiz.result.majority || "无唯一最多选项"}
+              </p>
+              <p>{quiz.question.explanation}</p>
+            </div>
+          )}
+        </section>
+      )}
+      <section className="mobile-card">
+        <div className="eyebrow">刚刚发生</div>
+        {s.events
+          .slice(-3)
+          .reverse()
+          .map((e) => (
+            <p key={e.id}>{e.text}</p>
+          ))}
+      </section>
+      <footer className="mobile-footer">
+        <span>房间 {s.code}</span>
+        <button className="text-button" onClick={game.logout}>
+          退出当前会话
+        </button>
+      </footer>
+    </main>
+  );
+}
