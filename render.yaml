@@ -3,8 +3,9 @@ services:
     name: toysrus-monopoly
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build
+    buildCommand: npm ci --include=dev --registry=https://registry.npmjs.org --replace-registry-host=registry.npmmirror.com && npm run build
     startCommand: npm start
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
-        value: 20
+        value: 20.20.2

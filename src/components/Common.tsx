@@ -41,7 +41,6 @@ export function ErrorBar({ game }: { game: GameConnection }) {
 }
 export function RoomForm({ role }: { role: "host" | "player" | "screen" }) {
   const [room, setRoom] = useState(initialRoom),
-    [password, setPassword] = useState(""),
     [name, setName] = useState(""),
     [team, setTeam] = useState<TeamId>("east"),
     [error, setError] = useState(""),
@@ -54,7 +53,7 @@ export function RoomForm({ role }: { role: "host" | "player" | "screen" }) {
         const result = await request(
           create ? "/api/rooms" : `/api/rooms/${room}/host-session`,
           "POST",
-          { password },
+          {},
         );
         saveSession(result.code, "host", result.token);
       } else if (role === "player") {
@@ -110,19 +109,6 @@ export function RoomForm({ role }: { role: "host" | "player" | "screen" }) {
               onChange={(e) => setRoom(e.target.value.replace(/\D/g, ""))}
             />
           </label>
-          {role === "host" && (
-            <label>
-              主持人口令
-              <input
-                type="password"
-                autoComplete="current-password"
-                required
-                placeholder="请输入主持人口令"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </label>
-          )}
           {role === "player" && (
             <>
               <label>
@@ -172,7 +158,7 @@ export function RoomForm({ role }: { role: "host" | "player" | "screen" }) {
             <button
               type="button"
               className="secondary wide"
-              disabled={busy || !password}
+              disabled={busy}
               onClick={() => void enter(true)}
             >
               ＋ 创建新房间

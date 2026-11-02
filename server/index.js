@@ -9,7 +9,7 @@ import { Server } from "socket.io";
 import QRCode from "qrcode";
 import ExcelJS from "exceljs";
 import { createStore } from "./lib/store.js";
-import { authorize, token, hash, equal } from "./lib/auth.js";
+import { authorize, token, hash } from "./lib/auth.js";
 import {
   newRoom,
   command,
@@ -23,16 +23,6 @@ import { importQuestions, COLUMNS, safeCsv } from "./lib/import.js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export async function createApp(options = {}) {
   const production = process.env.NODE_ENV === "production";
-  const hostPassword =
-    options.hostPassword ??
-    process.env.HOST_PASSWORD ??
-    (production ? null : "local-host-change-me");
-  if (
-    !hostPassword ||
-    (production &&
-      (hostPassword.length < 12 || hostPassword === "local-host-change-me"))
-  )
-    throw new Error("正式环境必须设置至少12位、不同于开发默认值的HOST_PASSWORD");
   const store = options.store ?? (await createStore());
   const app = express(),
     server = http.createServer(app);
@@ -177,9 +167,7 @@ export async function createApp(options = {}) {
   app.post(
     "/api/rooms",
     wrap(async (req, res) => {
-      limit("login:" + req.ip, 30);
-      if (!equal(req.body.password || "", hostPassword))
-        throw new GameError("主持人口令错误", 401);
+      limit("host-entry:" + req.ip, 30);
       let code;
       do {
         code = String(randomInt(100000, 1000000));
@@ -195,14 +183,12 @@ export async function createApp(options = {}) {
   app.post(
     "/api/rooms/:code/host-session",
     wrap(async (req, res) => {
-      limit("login:" + req.ip, 30);
-      if (!equal(req.body.password || "", hostPassword))
-        throw new GameError("主持人口令错误", 401);
+      limit("host-entry:" + req.ip, 30);
       const credential = token();
       await store.mutate(req.params.code, (s) => {
         if (!s) throw new GameError("房间不存在", 404);
         s.hostHash = hash(credential);
-        event(s, "host_login", "主持人重新登录，旧主持人会话失效");
+        event(s, "host_enter", "主持人进入房间，旧主持人会话失效");
       });
       await broadcast(req.params.code);
       res.json({ code: req.params.code, token: credential });
@@ -283,15 +269,13 @@ export async function createApp(options = {}) {
         throw new GameError("请提供可供手机访问的完整站点地址");
       }
       url.searchParams.set("room", req.params.code);
-      res
-        .type("image/svg+xml")
-        .send(
-          await QRCode.toString(url.href, {
-            type: "svg",
-            margin: 2,
-            color: { dark: "#281512", light: "#ffffff" },
-          }),
-        );
+      res.type("image/svg+xml").send(
+        await QRCode.toString(url.href, {
+          type: "svg",
+          margin: 2,
+          color: { dark: "#281512", light: "#ffffff" },
+        }),
+      );
     }),
   );
   app.get(

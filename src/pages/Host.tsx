@@ -68,7 +68,7 @@ export default function Host() {
           <Brand />
           <h2>正在连接控制台</h2>
           <ErrorBar game={game} />
-          <button onClick={game.logout}>重新登录</button>
+          <button onClick={game.logout}>重新进入房间</button>
         </section>
       </main>
     );

@@ -4,7 +4,6 @@ Creates its own room, approved questions are never fabricated in the live room.
 import json, re, os
 from playwright.sync_api import sync_playwright, expect
 BASE=os.environ.get('E2E_BASE_URL','http://127.0.0.1:5180')
-PASSWORD=os.environ.get('E2E_HOST_PASSWORD','local-host-change-me')
 errors=[]
 with sync_playwright() as p:
     browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox','--disable-dev-shm-usage'])
@@ -16,7 +15,7 @@ with sync_playwright() as p:
     if host.locator('.host-app').count():
         host.evaluate("localStorage.clear()")
         host.reload()
-    host.get_by_placeholder('请输入主持人口令').fill(PASSWORD)
+    expect(host.locator('input[type=password]')).to_have_count(0)
     host.get_by_role('button',name='＋ 创建新房间',exact=True).click()
     host.wait_for_url(re.compile(r'.*/host\?room=\d{6}'))
     code=host.url.split('room=')[1]

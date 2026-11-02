@@ -8,10 +8,9 @@ import ExcelJS from "exceljs";
 import { createApp } from "../server/index.js";
 import { createStore } from "../server/lib/store.js";
 import { importQuestions, safeCsv, COLUMNS } from "../server/lib/import.js";
-const password = "integration-host-secret";
 async function fixture(file) {
   const store = await createStore({ databaseUrl: null, file });
-  const app = await createApp({ store, hostPassword: password });
+  const app = await createApp({ store });
   await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
   return { ...app, url: `http://127.0.0.1:${app.server.address().port}` };
 }
@@ -48,13 +47,18 @@ test("real HTTP + WebSocket, auth boundaries, concurrent roll lock, database rel
   let app = await fixture(file);
   const sockets = [];
   try {
+    const created = await api(app.url, "/api/rooms", {});
+    assert.equal(created.status, 201);
+    const { code, token: previousHost } = created.body;
+    const entered = await api(app.url, `/api/rooms/${code}/host-session`, {});
+    assert.equal(entered.status, 200);
+    const host = entered.body.token;
+    assert.notEqual(host, previousHost);
     assert.equal(
-      (await api(app.url, "/api/rooms", { password: "wrong" })).status,
+      (await api(app.url, `/api/rooms/${code}/state`, null, previousHost))
+        .status,
       401,
     );
-    const created = await api(app.url, "/api/rooms", { password });
-    assert.equal(created.status, 201);
-    const { code, token: host } = created.body;
     const creds = [];
     for (const [team, nickname] of [
       ["east", "东区1"],

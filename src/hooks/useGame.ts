@@ -70,7 +70,7 @@ export function useGame(role: Role) {
     s.on("disconnect", () => setConnected(false));
     s.on("connect_error", (e) => setError(e.message));
     s.on("session:revoked", () => {
-      setError("身份已失效，请重新登录");
+      setError("身份已失效，请重新进入房间");
       localStorage.removeItem(tokenKey(room, role));
     });
     s.on("state:update", (next: GameState) => {

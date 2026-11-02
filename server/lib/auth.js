@@ -22,5 +22,5 @@ export function authorize(s, role, credential) {
     );
     if (player) return { role: "player", playerId: player.id };
   }
-  throw new GameError("身份凭证无效，请重新登录或联系主持人", 401);
+  throw new GameError("身份凭证无效，请重新进入房间或联系主持人", 401);
 }
