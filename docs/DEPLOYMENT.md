@@ -30,7 +30,7 @@ npm start
 
 SQLite数据库默认 `data/game.sqlite`，原图上传保存在 `data/assets/`，同时原样复制到 `public/assets/`。持久化挂载整个 `data/` 目录；定期备份，避免将每次重启部署成空目录。SQLite适配器将事务后的数据库导出到临时文件、fsync再原子替换，支持进程重启恢复；只允许一个应用实例写此文件。不要让多个容器或进程共享同一个SQLite文件。
 
-`render.yaml` 提供带持久化磁盘的付费单实例配置。免费无持久化磁盘实例不适合承载现场游戏。
+`render.yaml` 保留仓库既有服务定义。可选的 `deploy/render-persistent.yaml` 提供带持久化磁盘的付费单实例配置，只在明确选择该部署方案后使用；代码更新不会主动调整现有套餐。免费无持久化磁盘实例如需承载现场游戏，应配置持久化的 PostgreSQL `DATABASE_URL`。
 
 ## PostgreSQL / Supabase
 
