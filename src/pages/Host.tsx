@@ -230,20 +230,6 @@ export default function Host() {
                   >
                     下一队 →
                   </button>
-                  <button
-                    className="danger-subtle"
-                    disabled={
-                      disabled || !["running", "paused"].includes(s.status)
-                    }
-                    onClick={() =>
-                      guard(
-                        "确定提前结束本场游戏？未冲线队伍按位置排名。",
-                        "end",
-                      )
-                    }
-                  >
-                    结束游戏
-                  </button>
                 </div>
               </section>
               <section className="panel join-panel">
@@ -441,6 +427,20 @@ export default function Host() {
                 </div>
               </section>
             </div>
+            <section className="panel host-end-game" aria-labelledby="end-game-heading">
+              <div>
+                <h2 id="end-game-heading">结束本场游戏</h2>
+                <p>确认活动结束后使用。未冲线队伍将按当前位置排名。</p>
+              </div>
+              <button
+                type="button"
+                className="danger-subtle"
+                disabled={disabled || !["running", "paused"].includes(s.status)}
+                onClick={() => guard("是否结束游戏？", "end")}
+              >
+                结束游戏
+              </button>
+            </section>
           </>
         )}
         {tab === "players" && (

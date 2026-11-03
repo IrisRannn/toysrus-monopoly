@@ -594,6 +594,35 @@ small {
 .control-top > .panel {
   height: 100%;
 }
+.host-end-game {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 48px;
+  border-color: #e7c6c2;
+  background: #fff8f6;
+}
+.host-end-game > div {
+  flex: 1 1 240px;
+}
+.host-end-game h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  color: #8c3932;
+}
+.host-end-game p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #956e68;
+}
+.host-end-game > button {
+  flex-shrink: 0;
+  min-width: 120px;
+  margin-left: auto;
+}
 .current-turn {
   background: linear-gradient(
     110deg,
