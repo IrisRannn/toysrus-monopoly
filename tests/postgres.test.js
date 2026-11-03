@@ -52,6 +52,7 @@ test(
           host,
           "saveQuestion",
           {
+            id: "pg-test-question",
             tile: 4,
             text: "数据库并发测试题",
             options: { A: "甲", B: "乙", C: "丙", D: "丁" },
@@ -59,7 +60,7 @@ test(
           },
           now,
         );
-        command(s, host, "startQuiz", {}, now);
+        command(s, host, "startQuiz", { questionId: "pg-test-question" }, now);
         for (let i = 0; i < 10; i++)
           s.players["v" + i] = {
             id: "v" + i,

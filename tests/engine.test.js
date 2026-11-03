@@ -7,7 +7,10 @@ import {
   tick,
   publicState,
   prizeCandidates,
+  seedQuestionBank,
+  validateQuestion,
 } from "../server/lib/engine.js";
+import { BUILTIN_QUESTIONS, availableQuestions, questionKey } from "../server/lib/questions.js";
 import { TEAM_ORDER, TILES, tally, rankings } from "../shared/gameRules.js";
 const host = { role: "host" },
   player = (id) => ({ role: "player", playerId: id }),
@@ -43,6 +46,7 @@ function toQuiz(tile = 4) {
     host,
     "saveQuestion",
     {
+      id: `test-question-${tile}`,
       tile,
       text: "测试题目（非正式品牌题）",
       options: { A: "一", B: "二", C: "三", D: "四" },
@@ -51,7 +55,7 @@ function toQuiz(tile = 4) {
     },
     NOW,
   );
-  command(s, host, "startQuiz", {}, NOW);
+  command(s, host, "startQuiz", { questionId: `test-question-${tile}` }, NOW);
   return s;
 }
 function reveal(s) {
@@ -284,8 +288,9 @@ test("host-only controls, private answer filtering, cross-team votes, cutoff and
     /截止/,
   );
 });
-test("no fabricated questions, no reuse in same game, resets require room confirmation", () => {
+test("empty question banks never fabricate questions; resets require room confirmation", () => {
   const s = room();
+  s.questions = [];
   start(s);
   onlineRoll(s, 4);
   settle(s);
@@ -298,6 +303,100 @@ test("no fabricated questions, no reuse in same game, resets require room confir
   const used = toQuiz();
   command(used, host, "reset", { confirm: used.code }, NOW);
   assert.equal(publicState(used, host).questionUsage.length, 1);
+});
+
+test("approved built-in bank loads in every new room, deduplicates 20 source rows, and uses a shared pool", () => {
+  const s = room();
+  assert.equal(s.questions.length, 19);
+  assert.equal(new Set(s.questions.map(questionKey)).size, 19);
+  assert(s.questions.every((q) => q.tile === 0));
+  s.questions.forEach(validateQuestion);
+  for (const tile of [4, 8, 12, 15, 16])
+    assert.equal(availableQuestions(s, tile).length, 19);
+  const date = s.questions.find((q) => q.text.includes("具体时间"));
+  assert.deepEqual(date.options, { A: "2006年6月", B: "2006年8月", C: "2006年10月", D: "2006年12月" });
+  assert.equal(date.answer, "D");
+  s.questions[0].text = "只在这个房间修改";
+  assert.equal(room().questions[0].text, BUILTIN_QUESTIONS[0].text);
+  assert.equal(publicState(s, { role: "screen" }).questions, undefined);
+});
+
+test("a full four-round five-team game draws all 19 questions without reuse across teams or tiles", () => {
+  const s = room(), seen = new Set();
+  start(s);
+  for (let round = 1; round <= 4; round++) {
+    for (const team of TEAM_ORDER) {
+      assert.equal(s.currentTeam, team);
+      const value = round === 4 ? 3 : round === 1 && team === "shanghai" ? 2 : 4;
+      if (team === "shanghai") command(s, host, "physicalDice", { value }, NOW);
+      else onlineRoll(s, value);
+      settle(s);
+      if (s.phase === "quiz_ready") {
+        command(s, host, "startQuiz", {}, NOW);
+        const key = questionKey(s.quiz.question);
+        assert(!seen.has(key), "question repeated during the same game");
+        seen.add(key);
+        if (round === 4)
+          command(s, player(team), "answer", { option: s.quiz.question.answer }, NOW + 1);
+        reveal(s);
+      }
+      if (s.status !== "finished") command(s, host, "next", {}, NOW);
+    }
+  }
+  assert.equal(s.status, "finished");
+  assert.equal(s.round, 4);
+  assert.equal(seen.size, 19);
+  assert.equal(s.usedQuestionKeys.length, 19);
+  assert(Object.values(s.teams).every((team) => team.position === 20));
+});
+
+test("exhausted bank never wraps; imports, new IDs, option edits and punctuation cannot recycle a used question", () => {
+  const s = room();
+  start(s);
+  const question = structuredClone(s.questions[0]);
+  // Exhaust the bank across different teams/tiles without resetting the game.
+  for (let i = 0; i < 19; i++) {
+    s.currentTeam = TEAM_ORDER[i % 5];
+    s.teams[s.currentTeam].position = [4, 8, 12, 15, 16][i % 5];
+    s.phase = "quiz_ready";
+    command(s, host, "startQuiz", {}, NOW);
+    if (i === 0) {
+      s.phase = "quiz_ready";
+      assert.throws(() => command(s, host, "startQuiz", { questionId: s.quiz.question.id }, NOW), /已使用/);
+    }
+  }
+  assert.equal(new Set(s.usedQuestionKeys).size, 19);
+  s.phase = "quiz_ready";
+  assert.throws(() => command(s, host, "startQuiz", {}, NOW), /用完/);
+  assert.throws(() => command(s, host, "startQuiz", { questionId: question.id }, NOW), /用完/);
+  command(s, host, "importQuestions", { questions: [{ ...question, id: "new-import-id" }] }, NOW);
+  assert.equal(s.questions.length, 19);
+  assert.throws(() => command(s, host, "saveQuestion", {
+    ...question, id: "new-id", tile: 16,
+    text: "  " + question.text.replace("？", " ? "),
+    options: { ...question.options, A: "调整选项" },
+  }, NOW), /相同问题/);
+  assert.throws(() => command(s, host, "startQuiz", {}, NOW), /用完/);
+  command(s, host, "reset", { confirm: s.code }, NOW);
+  assert.equal(s.questions.length, 19);
+  assert.equal(availableQuestions(s, 4).length, 19);
+});
+
+test("one-time migration preserves custom bank, progress and prior usage; deleting a built-in question stays respected", () => {
+  const s = room(), question = { ...s.questions[0], id: "old-import-id", tile: 4 };
+  s.questions = [question];
+  s.usedQuestions = [question.id];
+  delete s.usedQuestionKeys;
+  delete s.questionBankVersion;
+  s.round = 7;
+  assert(seedQuestionBank(s));
+  assert.equal(s.questions.length, 19);
+  assert.equal(s.round, 7);
+  assert.equal(availableQuestions(s, 4).length, 18);
+  const unused = s.questions.find((q) => q.id !== question.id);
+  command(s, host, "deleteQuestion", { id: unused.id }, NOW);
+  assert(!seedQuestionBank(s));
+  assert.equal(s.questions.length, 18);
 });
 test("lottery ranges respect ranks and tie confirmation, preserve every active employee", () => {
   const s = room();

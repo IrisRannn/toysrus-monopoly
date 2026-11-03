@@ -626,10 +626,11 @@ function QuizControl({
     [seconds, setSeconds] = useState(s.settings.answerSeconds);
   const questions = (s.questions || []).filter(
       (q) =>
-        q.tile === s.teams[s.currentTeam].position &&
+        (q.tile === 0 || q.tile === s.teams[s.currentTeam].position) &&
         !s.usedQuestions?.includes(q.id),
     ),
     quiz = s.quiz;
+  useEffect(() => setSelected(""), [s.turnId]);
   return (
     <section className="panel host-quiz">
       <div className="section-heading">
@@ -652,7 +653,7 @@ function QuizControl({
                 value={selected}
                 onChange={(e) => setSelected(e.target.value)}
               >
-                <option value="">从本格未使用题目中随机抽取</option>
+                <option value="">从本格及共用题池随机抽取（本局不重复）</option>
                 {questions.map((q) => (
                   <option key={q.id} value={q.id}>
                     {q.text}
@@ -673,12 +674,12 @@ function QuizControl({
           </div>
           {!questions.length && (
             <p className="notice">
-              此格没有未使用题目，请先在「题库管理」添加。系统不会使用虚构品牌题目。
+              此格可用题目已用完。请在「题库管理」补充新题，本局不会循环使用旧题。
             </p>
           )}
           <button
             className="primary"
-            disabled={game.busy || s.status !== "running"}
+            disabled={game.busy || s.status !== "running" || !questions.length}
             onClick={() =>
               void game.cmd("startQuiz", {
                 questionId: selected || undefined,
@@ -773,7 +774,7 @@ function QuizControl({
 }
 const blankQuestion = () => ({
   id: "",
-  tile: 4,
+  tile: 0,
   text: "",
   options: { A: "", B: "", C: "", D: "" },
   answer: "A",
@@ -812,7 +813,7 @@ function QuestionManager({
         { type: "importQuestions", payload: { format, content } },
         s.code,
       );
-      setMessage("导入成功，所有题目已通过格式校验。");
+      setMessage("导入完成，相同问题自动跳过。保存数量见「操作记录」。");
     } catch (e) {
       game.setError((e as Error).message);
     } finally {
@@ -852,7 +853,9 @@ function QuestionManager({
         <div className="section-heading">
           <div>
             <h2>{draft.id ? "编辑题目" : "添加正式题目"}</h2>
-            <p className="muted">请由品牌方提供正式题目，题库默认保持为空。</p>
+            <p className="muted">
+              已内置本次周年题库，新建房间自动加载。整场游戏共用去重记录，题目用完后请补充新题。
+            </p>
           </div>
           <button
             className="secondary"
@@ -883,6 +886,7 @@ function QuestionManager({
                   setDraft({ ...draft, tile: Number(e.target.value) })
                 }
               >
+                <option value={0}>共用题池 · 所有答题格</option>
                 {TILES.filter((t) => t.type === "quiz").map((t) => (
                   <option value={t.id} key={t.id}>
                     {String(t.id).padStart(2, "0")} · {t.name}
@@ -974,7 +978,8 @@ function QuestionManager({
         </div>
         <p className="muted">
           列名：tile, question, A, B, C, D, answer,
-          explanation。一次最多1000题；任何一行错误将整批拒绝，避免导入一半。
+          explanation。tile 填0表示所有答题格共用，也可填4/8/12/15/16指定格子。
+          一次最多1000题，相同问题自动跳过；任何一行错误将整批拒绝。
         </p>
       </section>
       <section className="panel">
@@ -994,10 +999,10 @@ function QuestionManager({
         </div>
         <div className="question-list">
           {(s.questions || [])
-            .filter((q) => !filter || q.tile === filter)
+            .filter((q) => !filter || q.tile === 0 || q.tile === filter)
             .map((q) => (
               <article key={q.id}>
-                <span className="pill">{q.tile}号格</span>
+                <span className="pill">{q.tile === 0 ? "共用题池" : `${q.tile}号格`}</span>
                 <div>
                   <h3>{q.text}</h3>
                   <p className="muted">

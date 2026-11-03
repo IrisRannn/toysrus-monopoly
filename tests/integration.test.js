@@ -8,6 +8,8 @@ import ExcelJS from "exceljs";
 import { createApp } from "../server/index.js";
 import { createStore } from "../server/lib/store.js";
 import { importQuestions, safeCsv, COLUMNS } from "../server/lib/import.js";
+import { newRoom } from "../server/lib/engine.js";
+import { hash } from "../server/lib/auth.js";
 async function fixture(file) {
   const store = await createStore({ databaseUrl: null, file });
   const app = await createApp({ store });
@@ -176,6 +178,7 @@ test("CSV/XLSX validate real files, reject empty or invalid rows, formula-safe e
   const questions = await importQuestions("csv", content);
   assert.equal(questions.length, 1);
   assert.equal(questions[0].tile, 4);
+  assert.equal((await importQuestions("csv", content.replace("\n4,", "\n0,")))[0].tile, 0);
   await assert.rejects(
     () => importQuestions("csv", COLUMNS.join(",") + "\n"),
     /1–1000/,
@@ -199,6 +202,60 @@ test("CSV/XLSX validate real files, reject empty or invalid rows, formula-safe e
       "'=HYPERLINK",
     ),
   );
+});
+
+test("built-in bank upgrades existing rooms once, preserves consumption on restart and returns after a fresh deployment", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "monopoly-bank-"));
+  const file = path.join(directory, "state.sqlite");
+  const code = "123456", credential = "test-host-token";
+  const store = await createStore({ databaseUrl: null, file });
+  const legacy = newRoom(code, hash(credential));
+  const used = { ...legacy.questions[0], id: "legacy-used", tile: 4 };
+  legacy.questions = [used, {
+    id: "custom", tile: 0, text: "既有自定义题目", options: { A: "甲", B: "乙", C: "丙", D: "丁" }, answer: "A", explanation: "保留原题",
+  }];
+  legacy.usedQuestions = [used.id];
+  delete legacy.questionBankVersion;
+  delete legacy.usedQuestionKeys;
+  legacy.round = 3;
+  legacy.status = "running";
+  legacy.phase = "quiz_ready";
+  legacy.teams.east.position = 8;
+  await store.mutate(code, () => ({ state: legacy }));
+  await store.close();
+  let app = await fixture(file);
+  try {
+    const current = (await api(app.url, `/api/rooms/${code}/state`, null, credential)).body;
+    assert.equal(current.questions.length, 20);
+    assert.equal(current.round, 3);
+    assert(current.questions.some((q) => q.id === "custom"));
+    assert.equal((await api(app.url, `/api/rooms/${code}/state`, null, null, "screen")).body.questions, undefined);
+    const request = (type, payload = {}) => api(app.url, `/api/rooms/${code}/commands`, { type, payload }, credential);
+    assert.equal((await request("startQuiz", { questionId: used.id })).status, 400);
+    const removed = current.questions.find((q) => q.id !== used.id && q.id !== "custom");
+    assert.equal((await request("deleteQuestion", { id: removed.id })).status, 200);
+    assert.equal((await request("startQuiz", { questionId: "custom", seconds: 300 })).status, 200);
+    assert.equal((await request("pause")).status, 200);
+    await app.close();
+    app = await fixture(file);
+    const restored = (await api(app.url, `/api/rooms/${code}/state`, null, credential)).body;
+    assert.equal(restored.questions.length, 19);
+    assert(!restored.questions.some((q) => q.id === removed.id));
+    assert(restored.usedQuestions.includes(used.id));
+    assert(restored.usedQuestions.includes("custom"));
+    assert.equal(restored.quiz.question.id, "custom");
+    assert.equal(restored.status, "paused");
+    await app.close();
+    // A free instance losing its database still starts with the approved bank.
+    app = await fixture(path.join(directory, "fresh.sqlite"));
+    const created = (await api(app.url, "/api/rooms", {})).body;
+    const fresh = (await api(app.url, `/api/rooms/${created.code}/state`, null, created.token)).body;
+    assert.equal(fresh.questions.length, 19);
+    assert.deepEqual(fresh.usedQuestions, []);
+  } finally {
+    await app.close();
+    await fs.rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("a burst of commands is acknowledged durably while screen snapshots are coalesced", async () => {

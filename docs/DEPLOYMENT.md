@@ -34,7 +34,7 @@ SQLite数据库默认 `data/game.sqlite`，原图上传保存在 `data/assets/`�
 
 ## PostgreSQL / Supabase
 
-1. 在Supabase SQL Editor或 `psql` 中执行 `supabase/migrations/202611020001_game.sql`。无正式题目种子，`supabase/seed.sql`仅说明用途。
+1. 在Supabase SQL Editor或 `psql` 中执行 `supabase/migrations/202611020001_game.sql`。内置19题由应用为每个新房间自动加载，不需要另执行题目SQL；`supabase/seed.sql`仅说明用途。
 2. 在服务器安全环境变量中配置 `DATABASE_URL`，使用Supabase的PostgreSQL直连或session pooler连接串，IPv4环境通常选session pooler。使用数据库所有者或具备服务端权限的数据库账号，不能使用匿名浏览器凭证。
 3. TLS保持校验开启。连接串使用 `sslmode=verify-full`，如果数据库证书需要额外CA，通过受信任CA路径配置，不要使用 `rejectUnauthorized:false`。
 4. 可设置 `PUBLIC_BASE_URL`（未设置时二维码使用当前浏览器站点地址），不再需要 `HOST_PASSWORD`。`.env.example` 有完整模板。`DATABASE_URL`、数据库密码和任何Supabase service role密钥绝不能设置为 `VITE_` 变量，也不能发送到浏览器。
@@ -68,7 +68,13 @@ docker build --secret id=proxy_ca,src="$CODEX_PROXY_CERT" -t monopoly .
 
 初始20个坐标来自任务参考表，保存在 `shared/tilePositions.js`。上传原图后拖动编号校准，保存到房间并同步三端；支持JSON导入导出。正式展示使用同一个16:9图片容器定位棋子，不用viewport坐标。
 
-正式题库默认空白。请用CSV/XLSX模板导入经品牌方确认的题目。题次内每名员工可修改一份答案，最高单项票胜出、最高票并列或无人提交均未答对。默认30秒，主持人可设置5–300秒。答对只移动，不产生积分。
+已内置用户上传的周年题库：20行去掉一条完全重复题目后为19题，五个答题格共用。房间创建时自动加载；旧房间在升级启动时一次性补充，保留进度、原题与已用记录，后续删除或编辑内置题目不会在每次重启时被覆盖。`server/data/anniversary-questions.json`只由服务器读取，不放进公开静态资源。
+
+整场比赛的已用题目按内容与ID共同保护，跨轮次、队伍和格子不重复；CSV/XLSX重复导入相同问题会跳过。共用题池用`tile=0`，专属题用4/8/12/15/16。题目用完须补充新题，系统不会重复旧题或自行编题。只有明确重置整场游戏才清除已用记录。19题不保证覆盖所有走法，应提前准备备用题。
+
+固定内置题库无需外部数据库即可在免费Render重新部署后重新加载；后台新增/编辑的题目、房间和已用记录若要跨免费实例丢盘长期保留，仍须配置外部PostgreSQL。不要把重新创建的房间视为重启前同一场比赛。
+
+题次内每名员工可修改一份答案，最高单项票胜出、最高票并列或无人提交均未答对。默认30秒，主持人可设置5–300秒。答对只移动，不产生积分。
 
 上线前请用真实员工手机、现场Wi-Fi、投屏设备和正式域名演练一次；主持人入口为用户明确要求的免口令模式。员工身份是免注册设备会话，不是实名企业账号；清除站点存储后无法识别为同一自然人。如需强实名去重，应另接企业身份系统。
 

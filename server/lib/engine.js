@@ -9,6 +9,13 @@ import {
   rankings,
 } from "../../shared/gameRules.js";
 import { tilePositions } from "../../shared/tilePositions.js";
+import {
+  BUILTIN_QUESTIONS,
+  QUESTION_BANK_VERSION,
+  questionKey,
+  usedQuestionKeys,
+  availableQuestions,
+} from "./questions.js";
 export class GameError extends Error {
   constructor(message, status = 400) {
     super(message);
@@ -32,6 +39,7 @@ const gameFields = [
   "quiz",
   "transitionAt",
   "usedQuestions",
+  "usedQuestionKeys",
   "pausedAt",
   "lastTile",
   "prizeConfirmation",
@@ -72,6 +80,7 @@ export function freshGame() {
     quiz: null,
     transitionAt: null,
     usedQuestions: [],
+    usedQuestionKeys: [],
     pausedAt: null,
     lastTile: null,
     prizeConfirmation: null,
@@ -85,12 +94,28 @@ export function newRoom(code, hostHash) {
     createdAt: Date.now(),
     ...freshGame(),
     players: {},
-    questions: [],
+    questions: clone(BUILTIN_QUESTIONS).map(validateQuestion),
+    questionBankVersion: QUESTION_BANK_VERSION,
     events: [],
     positions: clone(tilePositions),
     settings: { answerSeconds: 30, autoAdvance: false },
     undo: null,
   };
+}
+export function seedQuestionBank(s) {
+  if (s.questionBankVersion === QUESTION_BANK_VERSION) return false;
+  s.usedQuestionKeys = [...usedQuestionKeys(s)];
+  const existing = new Set(s.questions.map(questionKey));
+  let added = 0;
+  for (const q of BUILTIN_QUESTIONS) {
+    if (existing.has(questionKey(q))) continue;
+    s.questions.push(validateQuestion(clone(q)));
+    existing.add(questionKey(q));
+    added++;
+  }
+  s.questionBankVersion = QUESTION_BANK_VERSION;
+  event(s, "question", `加载内置周年题库，新增${added}道不重复题目`);
+  return true;
 }
 function checkpoint(s, label) {
   s.undo = {
@@ -224,7 +249,10 @@ function applyAnswer(s, now) {
 }
 export function validateQuestion(q) {
   const tile = Number(q.tile);
-  requireThat(QUIZ_TILES.includes(tile), "题目必须归属04、08、12、15或16号格");
+  requireThat(
+    tile === 0 || QUIZ_TILES.includes(tile),
+    "题目归属应为0（所有答题格共用）或04、08、12、15、16号格",
+  );
   requireThat(
     typeof q.text === "string" &&
       q.text.trim().length > 0 &&
@@ -414,12 +442,10 @@ export function command(
     hostOnly();
     running();
     requireThat(s.phase === "quiz_ready", "当前未停在待答题格");
-    const available = s.questions.filter(
-      (q) => q.tile === current().position && !s.usedQuestions.includes(q.id),
-    );
+    const available = availableQuestions(s, current().position);
     requireThat(
       available.length > 0,
-      "此格没有未使用的题目，请先添加或导入题目",
+      "此格可用题目已用完，请先添加或导入新题；本局不会重复出题",
     );
     const question = p.questionId
       ? available.find((q) => q.id === p.questionId)
@@ -439,6 +465,7 @@ export function command(
       result: null,
     };
     s.usedQuestions.push(question.id);
+    s.usedQuestionKeys = [...usedQuestionKeys(s)];
     s.phase = "answering";
     s.undo = null;
     record(
@@ -448,7 +475,7 @@ export function command(
       "host",
       {
         questionId: question.id,
-        tile: question.tile,
+        tile: current().position,
         team: s.currentTeam,
         round: s.round,
         turnId: s.turnId,
@@ -601,14 +628,29 @@ export function command(
       questions.length > 0 && questions.length <= 1000,
       "一次导入1–1000题",
     );
+    let saved = 0,
+      skipped = 0;
+    const used = usedQuestionKeys(s);
     for (const q of questions) {
+      const key = questionKey(q);
+      const duplicate = s.questions.find(
+        (x) => x.id !== q.id && questionKey(x) === key,
+      );
+      if (duplicate && type === "importQuestions") {
+        skipped++;
+        continue;
+      }
+      requireThat(!duplicate, "题库已有相同问题，请编辑原题；本局不会重复出题");
+      // IDs can change during import; keep the wording identity consumed too.
+      requireThat(!used.has(key), "本局已使用相同问题，不能重新添加");
       const idx = s.questions.findIndex((x) => x.id === q.id);
       if (idx >= 0) {
         requireThat(!s.usedQuestions.includes(q.id), "已使用题目请新建版本");
         s.questions[idx] = q;
       } else s.questions.push(q);
+      saved++;
     }
-    record(s, "question", `保存${questions.length}道题目`);
+    record(s, "question", `保存${saved}道题目，跳过${skipped}道重复题目`);
   } else if (type === "deleteQuestion") {
     hostOnly();
     requireThat(!s.usedQuestions.includes(p.id), "不能删除本局已使用题目");
@@ -817,14 +859,22 @@ export function publicState(s, actor, online = new Set(), shared = null) {
         }
       : null,
   };
-  if (host)
+  if (host) {
+    const used = usedQuestionKeys(s);
     Object.assign(result, {
       players: Object.values(s.players).map(({ tokenHash: _, ...p }) => ({
         ...p,
         online: online.has(p.id),
       })),
       questions: s.questions,
-      usedQuestions: s.usedQuestions,
+      usedQuestions: [
+        ...new Set([
+          ...s.usedQuestions,
+          ...s.questions
+            .filter((q) => used.has(questionKey(q)))
+            .map((q) => q.id),
+        ]),
+      ],
       questionUsage: s.events
         .filter((e) => e.type === "quiz_start" && e.questionId)
         .map(({ questionId, tile, team, round, turnId, at }) => ({
@@ -839,7 +889,7 @@ export function publicState(s, actor, online = new Set(), shared = null) {
       undoLabel: s.undo?.label,
       prizes: s.status === "finished" ? prizeCandidates(s) : null,
     });
-  else if (s.status === "finished")
+  } else if (s.status === "finished")
     result.prizes = {
       needsConfirmation: prizeCandidates(s).needsConfirmation,
       prizes: prizeCandidates(s).prizes.map(({ players: _, ...p }) => p),

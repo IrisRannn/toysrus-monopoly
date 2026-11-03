@@ -18,12 +18,21 @@ import {
   GameError,
   publicState,
   prizeCandidates,
+  seedQuestionBank,
 } from "./lib/engine.js";
 import { importQuestions, COLUMNS, safeCsv } from "./lib/import.js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export async function createApp(options = {}) {
   const production = process.env.NODE_ENV === "production";
   const store = options.store ?? (await createStore());
+  // Upgrade persisted rooms once, preserving their progress and custom questions.
+  for (const code of await store.codes()) {
+    const preview = await store.read(code);
+    if (preview && seedQuestionBank(preview))
+      await store.mutate(code, (s) => {
+        seedQuestionBank(s);
+      });
+  }
   const app = express(),
     server = http.createServer(app);
   app.disable("x-powered-by");

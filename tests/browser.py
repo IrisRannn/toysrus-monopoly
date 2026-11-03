@@ -28,6 +28,14 @@ with sync_playwright() as p:
     def state(role='host',credential=token):
         r=ctx.request.get(BASE+f'/api/rooms/{code}/state',headers={'x-game-role':role,'Authorization':'Bearer '+credential})
         assert r.ok,r.text();return r.json()
+    assert len(state()['questions'])==19
+    host.get_by_role('button',name='题库管理',exact=True).click()
+    expect(host.get_by_role('heading',name='全部题目 · 19',exact=True)).to_be_visible()
+    expect(host.get_by_role('combobox',name='所属格子',exact=True)).to_have_value('0')
+    host.reload()
+    assert len(state()['questions'])==19
+    host.get_by_role('button',name='现场控制',exact=True).click()
+    print('PASS built-in 19-question shared bank loads automatically and survives page refresh',flush=True)
     if ctx.request.get(BASE+'/api/health').json()['mode']=='development':
         for path in ['/data/game.sqlite?raw','/@fs/workspace/toysrus-monopoly/data/game.sqlite?raw','/server/lib/engine.js?raw']:
             assert ctx.request.get(BASE+path).status==403
@@ -108,6 +116,7 @@ with sync_playwright() as p:
     host.get_by_role('button',name='现场控制',exact=True).click()
     host.locator('.physical-buttons').get_by_role('button',name='4',exact=True).click()
     expect(host.get_by_role('button',name='开始答题',exact=True)).to_be_visible(timeout=15000)
+    host.get_by_role('combobox',name='选择题目',exact=True).select_option(label='自动化验证题（非正式题库）：请选择甲')
     host.get_by_role('button',name='开始答题',exact=True).click()
     sh=players[4]
     expect(sh.get_by_role('heading',name='自动化验证题（非正式题库）：请选择甲',exact=True)).to_be_visible()
