@@ -19,6 +19,7 @@ import {
   publicState,
   prizeCandidates,
   seedQuestionBank,
+  upgradeTurnAutomation,
 } from "./lib/engine.js";
 import { importQuestions, COLUMNS, safeCsv } from "./lib/import.js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -28,9 +29,13 @@ export async function createApp(options = {}) {
   // Upgrade persisted rooms once, preserving their progress and custom questions.
   for (const code of await store.codes()) {
     const preview = await store.read(code);
-    if (preview && seedQuestionBank(preview))
+    if (!preview) continue;
+    const bankChanged = seedQuestionBank(preview);
+    const automationChanged = upgradeTurnAutomation(preview);
+    if (bankChanged || automationChanged)
       await store.mutate(code, (s) => {
         seedQuestionBank(s);
+        upgradeTurnAutomation(s);
       });
   }
   const app = express(),

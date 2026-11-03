@@ -79,6 +79,10 @@ with sync_playwright() as p:
     api('reset',{'confirm':code})
     expect(screen.locator('.game-token[data-position="0"]')).to_have_count(5)
     print('PASS five teams on tile01 do not overlap; resizing 1920x1080 to1280x720 retains normalized coordinates',flush=True)
+    expect(host.get_by_role('checkbox',name='普通线上回合结束后自动切换下一队',exact=True)).to_be_checked()
+    # Every possible roll from17 finishes without a quiz: verify real automatic
+    # handoff using the backend's random dice, never sending a host next command.
+    api('manualMove',{'team':'east','position':17,'reason':'独立测试房间验证普通回合自动切队'})
     host.get_by_role('button',name='▶ 开始游戏',exact=True).click()
     east=players[0]
     east.get_by_role('button',name='成为本回合投骰代表',exact=True).click()
@@ -88,13 +92,15 @@ with sync_playwright() as p:
         expect(east.get_by_role('button',name='正在投骰…',exact=True)).to_be_disabled()
         ctx.request.post(BASE+DELAY_ENDPOINT,data={'ms':0})
     expect(host.locator('.current-turn')).to_contain_text('点')
-    host.wait_for_function("document.querySelector('.current-turn')?.innerText.includes('本队回合完成') || document.querySelector('.current-turn')?.innerText.includes('等待主持人开启答题')",timeout=15000)
-    after=state();assert after['teams']['east']['position']>0
+    expect(host.locator('.current-turn h2')).to_contain_text('中南区',timeout=15000)
+    expect(players[1].get_by_role('button',name='成为本回合投骰代表',exact=True)).to_be_visible()
+    after=state();assert after['teams']['east']['position']>=18
+    assert after['currentTeam']=='central' and after['phase']=='awaiting_dice'
     expect(screen.locator('[data-team=east]')).to_have_attribute('data-position',str(after['teams']['east']['position']))
     screen.reload();expect(screen.locator('[data-team=east]')).to_have_attribute('data-position',str(after['teams']['east']['position']))
     east.reload();expect(east.locator('.player-hero')).to_contain_text('浏览器测试-东区')
-    host.reload();expect(host.locator('.current-turn')).to_contain_text('东区')
-    print('PASS online representative dice, server movement, three-screen sync and page refresh recovery',flush=True)
+    host.reload();expect(host.locator('.current-turn')).to_contain_text('中南区')
+    print('PASS ordinary online turn automatically hands off to central without host next; three-screen sync and page refresh recovery',flush=True)
     # Deterministically configure a dedicated test turn via authorized reset/order controls.
     api('reset',{'confirm':code});api('setOrder',{'order':['shanghai','east','central','north','west']});api('start')
     expect(host.get_by_role('heading',name='现场投掷后，点击实际点数')).to_be_visible()

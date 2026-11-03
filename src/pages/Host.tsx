@@ -163,7 +163,9 @@ export default function Host() {
                 <p>
                   {s.status === "waiting"
                     ? "等待开场，确认所有队伍已经加入。"
-                    : phaseNames[s.phase]}
+                    : s.autoNextAt
+                      ? "本队回合完成，即将自动切换下一队"
+                      : phaseNames[s.phase]}
                 </p>
                 <div className="turn-details">
                   <div>
@@ -393,14 +395,18 @@ export default function Host() {
                   <input
                     type="checkbox"
                     checked={s.settings.autoAdvance}
+                    disabled={disabled}
                     onChange={(e) =>
                       void game.cmd("settings", {
                         autoAdvance: e.target.checked,
                       })
                     }
                   />
-                  完成格子事件后自动切换下一队
+                  普通线上回合结束后自动切换下一队
                 </label>
+                <p className="muted">
+                  默认开启。前进、后退走完后约2秒切队；答题回合和上海SSC回合仍由主持人点击“下一队”。
+                </p>
                 <div className="button-row">
                   <button
                     className="secondary"

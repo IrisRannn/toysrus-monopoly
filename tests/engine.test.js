@@ -9,6 +9,7 @@ import {
   prizeCandidates,
   seedQuestionBank,
   validateQuestion,
+  upgradeTurnAutomation,
 } from "../server/lib/engine.js";
 import { BUILTIN_QUESTIONS, availableQuestions, questionKey } from "../server/lib/questions.js";
 import { TEAM_ORDER, TILES, tally, rankings } from "../shared/gameRules.js";
@@ -31,7 +32,7 @@ function onlineRoll(s, value) {
   command(s, player(s.currentTeam), "roll", { value: 99 }, NOW, () => value);
 }
 function settle(s) {
-  for (let i = 0; i < 30 && s.transitionAt && s.status === "running"; i++)
+  for (let i = 0; i < 30 && s.transitionAt && s.status === "running" && s.phase !== "turn_complete"; i++)
     tick(s, s.transitionAt);
 }
 function toQuiz(tile = 4) {
@@ -141,6 +142,135 @@ test("all reward/penalty tiles obey exact table; movement clamps", () => {
   onlineRoll(s, 6);
   settle(s);
   assert.equal(s.teams.east.position, 20);
+});
+test("normal, reward, penalty and finish turns auto-advance only after all movement finishes", () => {
+  for (const tile of TILES.filter((t) => t.type !== "quiz")) {
+    const s = room();
+    assert.equal(s.settings.autoAdvance, true);
+    s.teams.east.position = tile.id - 1;
+    start(s);
+    onlineRoll(s, 1);
+    while (["rolling", "moving"].includes(s.phase)) {
+      assert.equal(s.currentTeam, "east");
+      assert.equal(publicState(s, host).autoNextAt, null);
+      tick(s, s.transitionAt);
+    }
+    assert.equal(s.phase, "turn_complete");
+    assert.equal(s.currentTeam, "east");
+    const due = s.transitionAt;
+    assert(due, `missing automatic handoff for tile ${tile.id}`);
+    assert.equal(publicState(s, host).autoNextAt, due);
+    assert.equal(tick(s, due - 1), false);
+    assert(tick(s, due));
+    assert.equal(s.currentTeam, "central");
+    assert.equal(s.phase, "awaiting_dice");
+    assert.equal(s.dice, null);
+    assert.equal(s.teams.central.representativeId, null);
+    assert.equal(tick(s, due + 100000), false);
+    assert.equal(s.events.filter((e) => e.type === "next").length, 1);
+  }
+});
+test("automatic handoff skips finished teams and waits for Shanghai physical dice and manual next", () => {
+  const s = room();
+  s.teams.central.position = 20;
+  s.teams.central.finishOrder = 1;
+  start(s);
+  onlineRoll(s, 1);
+  settle(s);
+  tick(s, s.transitionAt);
+  assert.equal(s.currentTeam, "north");
+  onlineRoll(s, 1);
+  settle(s);
+  tick(s, s.transitionAt);
+  assert.equal(s.currentTeam, "west");
+  onlineRoll(s, 1);
+  settle(s);
+  tick(s, s.transitionAt);
+  assert.equal(s.currentTeam, "shanghai");
+  assert.equal(s.phase, "awaiting_dice");
+  assert.equal(s.transitionAt, null);
+  command(s, host, "physicalDice", { value: 1 }, NOW);
+  settle(s);
+  assert.equal(s.phase, "turn_complete");
+  assert.equal(s.transitionAt, null);
+  command(s, host, "settings", { autoAdvance: true }, NOW);
+  assert.equal(s.transitionAt, null);
+  assert.equal(tick(s, NOW + 100000), false);
+  assert.equal(s.currentTeam, "shanghai");
+  command(s, host, "next", {}, NOW);
+  assert.equal(s.currentTeam, "east");
+  assert.equal(s.round, 2);
+});
+test("quiz-ready, correct and incorrect quiz turns always wait for host next even with automation enabled", () => {
+  const waiting = room();
+  start(waiting);
+  onlineRoll(waiting, 4);
+  settle(waiting);
+  assert.equal(waiting.phase, "quiz_ready");
+  assert.equal(tick(waiting, NOW + 100000), false);
+  assert.equal(waiting.currentTeam, "east");
+  for (const tile of [4, 8, 12, 15, 16]) {
+    for (const option of ["A", "B"]) {
+      const s = toQuiz(tile);
+      command(s, player("east"), "answer", { option }, NOW + 1);
+      reveal(s);
+      assert.equal(s.phase, "turn_complete");
+      assert.equal(s.transitionAt, null);
+      assert.equal(publicState(s, host).autoNextAt, null);
+      command(s, host, "settings", { autoAdvance: true }, NOW);
+      assert.equal(s.transitionAt, null);
+      assert.equal(tick(s, NOW + 100000), false);
+      assert.equal(s.currentTeam, "east");
+      command(s, host, "next", {}, NOW);
+      assert.equal(s.currentTeam, "central");
+    }
+  }
+});
+test("automatic handoff respects pause, disabling automation and safe undo", () => {
+  const s = room();
+  start(s);
+  onlineRoll(s, 3);
+  settle(s);
+  const due = s.transitionAt;
+  command(s, host, "pause", {}, due - 500);
+  assert.equal(publicState(s, host).autoNextAt, null);
+  assert.equal(tick(s, due + 1000), false);
+  command(s, host, "resume", {}, due + 4500);
+  assert.equal(s.transitionAt, due + 5000);
+  command(s, host, "settings", { autoAdvance: false }, due + 4501);
+  assert.equal(s.transitionAt, null);
+  assert.equal(tick(s, due + 10000), false);
+  command(s, host, "settings", { autoAdvance: true }, due + 10000);
+  assert.equal(s.transitionAt, due + 11800);
+  command(s, host, "next", {}, due + 10001);
+  command(s, host, "undo", {}, due + 10002);
+  assert.equal(s.currentTeam, "east");
+  assert.equal(s.phase, "turn_complete");
+  assert.equal(s.transitionAt, null);
+  assert.equal(tick(s, due + 100000), false);
+  command(s, host, "next", {}, due + 100003);
+  assert.equal(s.currentTeam, "central");
+});
+test("old rooms enable selective automation once and preserve later host choices", () => {
+  const s = room();
+  s.settings.autoAdvance = false;
+  delete s.turnAutomationVersion;
+  s.round = 5;
+  assert(upgradeTurnAutomation(s, NOW));
+  assert.equal(s.settings.autoAdvance, true);
+  assert.equal(s.round, 5);
+  command(s, host, "settings", { autoAdvance: false }, NOW);
+  assert.equal(upgradeTurnAutomation(s, NOW + 100), false);
+  assert.equal(s.settings.autoAdvance, false);
+  const paused = room();
+  start(paused);
+  onlineRoll(paused, 1);
+  settle(paused);
+  command(paused, host, "pause", {}, paused.transitionAt - 500);
+  delete paused.turnAutomationVersion;
+  assert(upgradeTurnAutomation(paused, NOW + 100000));
+  assert.equal(paused.transitionAt, paused.pausedAt + 1800);
+  assert.equal(tick(paused, NOW + 100000), false);
 });
 test("10 concurrent-style answers, updates replace old vote; plurality <50% still correct", () => {
   const s = toQuiz();

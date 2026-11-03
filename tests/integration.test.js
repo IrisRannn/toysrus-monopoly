@@ -258,6 +258,56 @@ test("built-in bank upgrades existing rooms once, preserves consumption on resta
   }
 });
 
+test("ordinary turn handoff survives restart, pauses safely and broadcasts without a host next command", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "monopoly-auto-next-"));
+  const file = path.join(directory, "state.sqlite");
+  const code = "123456", credential = "test-host-token";
+  const store = await createStore({ databaseUrl: null, file });
+  const legacy = newRoom(code, hash(credential));
+  delete legacy.turnAutomationVersion;
+  legacy.settings.autoAdvance = false;
+  legacy.status = "paused";
+  legacy.phase = "turn_complete";
+  legacy.pausedAt = Date.now();
+  legacy.teams.east.position = 1;
+  legacy.dice = { source: "online", value: 1, at: Date.now() - 2000 };
+  await store.mutate(code, () => ({ state: legacy }));
+  await store.close();
+  let app = await fixture(file);
+  const sockets = [];
+  try {
+    const migrated = (await api(app.url, `/api/rooms/${code}/state`, null, credential)).body;
+    assert.equal(migrated.settings.autoAdvance, true);
+    assert.equal(migrated.currentTeam, "east");
+    assert.equal(migrated.autoNextAt, null);
+    await app.close();
+    app = await fixture(file);
+    const screen = io(app.url, { auth: { room: code, role: "screen" }, transports: ["websocket"] });
+    sockets.push(screen);
+    await waitState(screen, (s) => s.status === "paused");
+    const automatic = waitState(screen, (s) => s.currentTeam === "central" && s.phase === "awaiting_dice");
+    const resumed = await api(app.url, `/api/rooms/${code}/commands`, { type: "resume" }, credential);
+    assert.equal(resumed.status, 200);
+    const next = await automatic;
+    assert.equal(next.teams.east.position, 1);
+    assert.equal(next.dice, null);
+    assert.equal(next.events.filter((e) => e.type === "next").length, 1);
+    assert.equal(next.events.find((e) => e.type === "next").actor, "system");
+    await api(app.url, `/api/rooms/${code}/commands`, { type: "settings", payload: { autoAdvance: false } }, credential);
+    screen.disconnect();
+    await app.close();
+    app = await fixture(file);
+    const restored = (await api(app.url, `/api/rooms/${code}/state`, null, credential)).body;
+    assert.equal(restored.settings.autoAdvance, false);
+    assert.equal(restored.currentTeam, "central");
+    assert.equal(restored.phase, "awaiting_dice");
+  } finally {
+    for (const socket of sockets) socket.disconnect();
+    await app.close();
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("a burst of commands is acknowledged durably while screen snapshots are coalesced", async () => {
   const directory = await fs.mkdtemp(
     path.join(os.tmpdir(), "monopoly-broadcast-"),

@@ -63,7 +63,9 @@ export default function Screen() {
           <p>
             {s.status === "waiting"
               ? "扫码加入队伍，等待主持人开场"
-              : phaseNames[s.phase]}
+              : s.autoNextAt
+                ? "本队回合完成，即将自动切换下一队"
+                : phaseNames[s.phase]}
           </p>
           {s.dice && (
             <div className="screen-dice">

@@ -26,6 +26,7 @@ const requireThat = (condition, message) => {
   if (!condition) throw new GameError(message);
 };
 const clone = (x) => structuredClone(x);
+const TURN_AUTOMATION_VERSION = 1;
 const gameFields = [
   "status",
   "phase",
@@ -98,7 +99,8 @@ export function newRoom(code, hostHash) {
     questionBankVersion: QUESTION_BANK_VERSION,
     events: [],
     positions: clone(tilePositions),
-    settings: { answerSeconds: 30, autoAdvance: false },
+    settings: { answerSeconds: 30, autoAdvance: true },
+    turnAutomationVersion: TURN_AUTOMATION_VERSION,
     undo: null,
   };
 }
@@ -115,6 +117,14 @@ export function seedQuestionBank(s) {
   }
   s.questionBankVersion = QUESTION_BANK_VERSION;
   event(s, "question", `加载内置周年题库，新增${added}道不重复题目`);
+  return true;
+}
+export function upgradeTurnAutomation(s, now = Date.now()) {
+  if (s.turnAutomationVersion === TURN_AUTOMATION_VERSION) return false;
+  s.settings.autoAdvance = true;
+  s.turnAutomationVersion = TURN_AUTOMATION_VERSION;
+  if (s.phase === "turn_complete") scheduleNextTurn(s, now);
+  event(s, "settings", "已开启普通线上回合自动切队；答题和上海SSC回合仍由主持人确认");
   return true;
 }
 function checkpoint(s, label) {
@@ -147,9 +157,23 @@ function move(s, to, kind, now) {
   event(s, "move", `${team.name}：${from} → ${team.position}格`);
   finish(s, team, now);
 }
+function canAutoAdvance(s) {
+  return (
+    s.settings.autoAdvance &&
+    ["running", "paused"].includes(s.status) &&
+    s.currentTeam !== "shanghai" &&
+    s.dice?.source === "online" &&
+    !s.quiz
+  );
+}
+function scheduleNextTurn(s, now) {
+  s.transitionAt = canAutoAdvance(s)
+    ? (s.status === "paused" ? s.pausedAt : now) + 1800
+    : null;
+}
 function complete(s, now) {
   s.phase = "turn_complete";
-  s.transitionAt = s.settings.autoAdvance ? now + 1800 : null;
+  scheduleNextTurn(s, now);
   if (Object.values(s.teams).every((t) => t.finishOrder)) {
     s.status = "finished";
     s.transitionAt = null;
@@ -221,8 +245,10 @@ export function tick(s, now = Date.now()) {
       move(s, team.position + tile.effect, "effect", now);
     } else complete(s, now);
   } else if (s.phase === "revealed") applyAnswer(s, now);
-  else if (s.phase === "turn_complete") next(s, now);
-  else return false;
+  else if (s.phase === "turn_complete") {
+    // Recheck the exceptions before executing a persisted timer.
+    if (canAutoAdvance(s)) next(s, now);
+  } else return false;
   return true;
 }
 function applyAnswer(s, now) {
@@ -540,8 +566,7 @@ export function command(
     }
     if (p.autoAdvance !== undefined) {
       s.settings.autoAdvance = !!p.autoAdvance;
-      if (s.phase === "turn_complete")
-        s.transitionAt = s.settings.autoAdvance ? now + 1800 : null;
+      if (s.phase === "turn_complete") scheduleNextTurn(s, now);
     }
     record(s, "settings", "主持人更新游戏设置");
   } else if (type === "manualMove") {
@@ -723,6 +748,8 @@ function restore(s) {
   const paused = s.status === "paused",
     pausedAt = s.pausedAt;
   Object.assign(s, clone(s.undo.game));
+  // Undoing a team change should leave time for the host to inspect/correct it.
+  if (s.phase === "turn_complete") s.transitionAt = null;
   if (paused && s.status === "running") {
     s.status = "paused";
     s.pausedAt = pausedAt;
@@ -815,6 +842,10 @@ export function publicState(s, actor, online = new Set(), shared = null) {
     lastTile: s.lastTile,
     positions: s.positions,
     settings: s.settings,
+    autoNextAt:
+      s.status === "running" && s.phase === "turn_complete" && canAutoAdvance(s)
+        ? s.transitionAt
+        : null,
     rankings: rankings(s.teams),
     events: s.events.filter((e) => host || !e.private).slice(-100),
     serverTime: Date.now(),

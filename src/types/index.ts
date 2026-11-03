@@ -94,6 +94,7 @@ export interface GameState {
   lastTile: number | null;
   positions: Position[];
   settings: { answerSeconds: number; autoAdvance: boolean };
+  autoNextAt: number | null;
   rankings: Team[];
   events: GameEvent[];
   serverTime: number;

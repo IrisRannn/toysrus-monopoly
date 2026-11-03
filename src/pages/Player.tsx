@@ -95,7 +95,9 @@ export default function Player() {
         <p className="muted">
           {team.finishOrder
             ? `已获得第${team.finishOrder}名，继续为大家加油！`
-            : phaseNames[s.phase]}
+            : s.autoNextAt
+              ? "本队回合完成，即将自动切换下一队"
+              : phaseNames[s.phase]}
         </p>
         {s.status === "running" &&
           myTurn &&
