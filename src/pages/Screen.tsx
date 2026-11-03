@@ -10,6 +10,7 @@ import {
 import { phaseNames, TILES } from "../config";
 import Board from "../components/Board";
 import Dice from "../components/Dice";
+import EventSpotlight from "../components/EventSpotlight";
 export default function Screen() {
   const game = useGame("screen"),
     { state: s } = game,
@@ -30,8 +31,9 @@ export default function Screen() {
     quiz = s.quiz,
     showQuiz =
       quiz &&
+      !s.presentation &&
       (["answering", "quiz_closed", "revealed"].includes(s.phase) ||
-        !!quiz.result),
+        (s.phase === "turn_complete" && !!quiz.result)),
     latest = s.events[s.events.length - 1],
     tile = TILES.find((t) => t.id === s.lastTile);
   return (
@@ -95,7 +97,7 @@ export default function Screen() {
           </span>
           <span>{s.onlineCount} 人在线</span>
         </div>
-        {latest && now - latest.at < 6000 && !showQuiz && (
+        {latest && now - latest.at < 6000 && !showQuiz && !s.presentation && (
           <div
             key={latest.id}
             className={"event-toast event-" + latest.type + " tile-" + tile?.id}
@@ -144,7 +146,7 @@ export default function Screen() {
                     </span>
                     <p>
                       {quiz.result.correct
-                        ? quiz.question.tile === 15
+                        ? quiz.tile === 15
                           ? "终极挑战答对，直达20号终点！"
                           : "答对，按格子规则前进3格。"
                         : "未答对，本队棋子保持原位。"}{" "}
@@ -168,6 +170,7 @@ export default function Screen() {
             </div>
           </div>
         )}
+        <EventSpotlight state={s} now={now} />
         {s.status === "finished" && (
           <div className="finish-overlay">
             <div className="confetti" />

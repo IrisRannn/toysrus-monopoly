@@ -47,6 +47,7 @@ test(
       await first.mutate(code, (s) => {
         tick(s, s.transitionAt);
         tick(s, s.transitionAt);
+        tick(s, s.transitionAt);
         command(
           s,
           host,

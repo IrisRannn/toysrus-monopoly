@@ -8,7 +8,7 @@ import ExcelJS from "exceljs";
 import { createApp } from "../server/index.js";
 import { createStore } from "../server/lib/store.js";
 import { importQuestions, safeCsv, COLUMNS } from "../server/lib/import.js";
-import { newRoom } from "../server/lib/engine.js";
+import { newRoom, command, tick } from "../server/lib/engine.js";
 import { hash } from "../server/lib/auth.js";
 async function fixture(file) {
   const store = await createStore({ databaseUrl: null, file });
@@ -301,6 +301,55 @@ test("ordinary turn handoff survives restart, pauses safely and broadcasts witho
     assert.equal(restored.settings.autoAdvance, false);
     assert.equal(restored.currentTeam, "central");
     assert.equal(restored.phase, "awaiting_dice");
+  } finally {
+    for (const socket of sockets) socket.disconnect();
+    await app.close();
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("special event survives restart and unrelated joins, then moves once without chaining a quiz", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "monopoly-presentation-"));
+  const file = path.join(directory, "state.sqlite");
+  const code = "123456", credential = "test-host-token", now = Date.now() - 5000;
+  const store = await createStore({ databaseUrl: null, file });
+  const state = newRoom(code, hash(credential));
+  const host = { role: "host" }, rep = { role: "player", playerId: "rep" };
+  state.players.rep = { id: "rep", team: "east", nickname: "代表" };
+  command(state, host, "start", {}, now);
+  command(state, rep, "claimRepresentative", {}, now);
+  command(state, rep, "roll", {}, now, () => 6);
+  tick(state, state.transitionAt);
+  tick(state, state.transitionAt);
+  command(state, host, "pause", {}, state.presentation.startedAt + 100);
+  await store.mutate(code, () => ({ state }));
+  await store.close();
+  let app = await fixture(file);
+  const sockets = [];
+  try {
+    const paused = (await api(app.url, `/api/rooms/${code}/state`, null, credential)).body;
+    assert.equal(paused.presentation.kind, "penalty");
+    assert.equal(paused.teams.east.position, 6);
+    const eventId = paused.presentation.id;
+    await api(app.url, `/api/rooms/${code}/players`, { team: "central", nickname: "晚加入员工" });
+    assert.equal((await app.store.read(code)).presentation.id, eventId);
+    await app.close();
+    app = await fixture(file);
+    const screen = io(app.url, { auth: { room: code, role: "screen" }, transports: ["websocket"] });
+    sockets.push(screen);
+    const restored = await waitState(screen, (s) => s.phase === "tile_event");
+    assert.equal(restored.presentation.id, eventId);
+    assert.equal(restored.presentation.effect, "后退2格");
+    const movement = waitState(screen, (s) => s.phase === "moving" && s.movement.kind === "effect");
+    await api(app.url, `/api/rooms/${code}/commands`, { type: "resume" }, credential);
+    const moving = await movement;
+    assert.equal(moving.teams.east.position, 4);
+    assert.equal(moving.presentation, null);
+    const completed = await waitState(screen, (s) => s.phase === "turn_complete");
+    assert.equal(completed.quiz, null);
+    assert.equal(completed.presentation, null);
+    assert.equal(completed.events.filter((e) => e.type === "tile_event").length, 1);
+    assert.equal((await app.store.read(code)).usedQuestions.length, 0);
   } finally {
     for (const socket of sockets) socket.disconnect();
     await app.close();

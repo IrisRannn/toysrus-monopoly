@@ -2246,3 +2246,111 @@ td .pill {
   color: #92704b;
   font-size: 12px;
 }
+
+/* Short, server-timed cards keep special actions readable from across a room. */
+.special-event {
+  --event-accent: #268b54;
+  position: absolute;
+  inset: 0;
+  z-index: 55;
+  display: grid;
+  place-items: center;
+  background: #2a0e18a8;
+  pointer-events: none;
+}
+.special-event-penalty {
+  --event-accent: #d43b2e;
+}
+.special-event-quiz {
+  --event-accent: #3567b9;
+}
+.special-event-finish,
+.special-event-correct {
+  --event-accent: #b26b05;
+}
+.special-event-card {
+  position: relative;
+  width: 64%;
+  padding: 2cqw 3cqw 1.5cqw;
+  overflow: hidden;
+  border: 0.28cqw solid var(--event-accent);
+  border-radius: 1.7cqw;
+  background: radial-gradient(ellipse at 50% 0%, #fffdf5, #fff0ce);
+  box-shadow: 0 1.2cqw 5cqw #16070670, inset 0 0 0 0.3cqw #fff9;
+  text-align: center;
+  color: #35271f;
+  animation: specialEventIn 0.3s ease-out both;
+}
+.special-event-team {
+  font-size: 1.1cqw;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--event-accent);
+}
+.special-event-icon {
+  margin: 0.4cqw 0;
+  font-size: 5.5cqw;
+  line-height: 1.15;
+}
+.special-event-penalty .special-event-icon {
+  animation: specialEventShake 0.45s ease-in-out 2;
+}
+.special-event h2 {
+  margin: 0.8cqw auto 0;
+  max-width: 95%;
+  font-size: 2.6cqw;
+  font-weight: 900;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+.special-event-action {
+  display: block;
+  margin: 0.35cqw 0;
+  font-size: 6cqw;
+  font-weight: 950;
+  line-height: 1.25;
+  color: var(--event-accent);
+}
+.special-event-card > p {
+  margin: 0.6cqw 0 1.2cqw;
+  color: #705d49;
+  font-size: 1cqw;
+  font-weight: 600;
+}
+.special-event-sparkles {
+  position: absolute;
+  top: 0.8cqw;
+  right: 1.4cqw;
+  font-size: 2.6cqw;
+  color: var(--event-accent);
+  opacity: 0.3;
+  transform: rotate(12deg);
+}
+.special-event-progress {
+  width: 60%;
+  height: 0.3cqw;
+  margin: auto;
+  overflow: hidden;
+  border-radius: 1cqw;
+  background: #64401820;
+}
+.special-event-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--event-accent);
+}
+@keyframes specialEventIn {
+  from { opacity: 0; transform: scale(0.88) translateY(1cqw); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes specialEventShake {
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .special-event-card,
+  .special-event-icon {
+    animation: none;
+  }
+}

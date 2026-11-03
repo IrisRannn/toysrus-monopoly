@@ -104,14 +104,40 @@ with sync_playwright() as p:
     # Deterministically configure a dedicated test turn via authorized reset/order controls.
     api('reset',{'confirm':code});api('setOrder',{'order':['shanghai','east','central','north','west']});api('start')
     expect(host.get_by_role('heading',name='现场投掷后，点击实际点数')).to_be_visible()
-    host.locator('.physical-buttons').get_by_role('button',name='5',exact=True).click()
+    host.locator('.physical-buttons').get_by_role('button',name='6',exact=True).click()
+    dinosaur=screen.locator('.special-event[data-tile="6"]')
+    expect(dinosaur).to_be_visible(timeout=15000)
+    expect(dinosaur.locator('h2')).to_have_text('糟糕！调皮恐龙拦住去路！')
+    expect(dinosaur.locator('.special-event-action')).to_have_text('后退2格')
+    api('pause')
+    held=state();assert held['teams']['shanghai']['position']==6 and held['phase']=='tile_event'
+    presentation_id=held['presentation']['id']
+    screen.reload();expect(dinosaur).to_be_visible()
+    assert state()['presentation']['id']==presentation_id
+    screen.screenshot(path='/workspace/monopoly-dinosaur-effect.png',animations='disabled')
+    screen.emulate_media(reduced_motion='reduce')
+    assert dinosaur.locator('.special-event-card').evaluate('(x)=>getComputedStyle(x).animationName')=='none'
+    screen.emulate_media(reduced_motion='no-preference')
+    api('resume')
     host.wait_for_function("document.querySelector('.current-turn')?.innerText.includes('本队回合完成')",timeout=15000)
-    assert state()['teams']['shanghai']['position']==4 # 05 penalty -1.
+    after_dinosaur=state()
+    assert after_dinosaur['teams']['shanghai']['position']==4
+    assert after_dinosaur['quiz'] is None and after_dinosaur['presentation'] is None
+    assert after_dinosaur['usedQuestions']==[]
+    expect(screen.locator('.special-event')).to_have_count(0)
     host.on('dialog',lambda d:d.accept())
     host.get_by_role('button',name=re.compile('↶ 撤销')).click()
     expect(host.locator('.physical-buttons')).to_be_visible()
     assert state()['teams']['shanghai']['position']==0
-    print('PASS Shanghai host dice5, tile05 penalty, durable safe undo',flush=True)
+    print('PASS dinosaur 6-to-4 spotlight, pause/refresh recovery, reduced motion, no chained quiz and safe undo',flush=True)
+    host.locator('.physical-buttons').get_by_role('button',name='2',exact=True).click()
+    reward=screen.locator('.special-event[data-tile="2"]')
+    expect(reward).to_be_visible(timeout=15000)
+    expect(reward.locator('.special-event-action')).to_have_text('前进2格')
+    host.wait_for_function("document.querySelector('.current-turn')?.innerText.includes('本队回合完成')",timeout=15000)
+    assert state()['teams']['shanghai']['position']==4 and state()['quiz'] is None
+    host.get_by_role('button',name=re.compile('↶ 撤销')).click()
+    expect(host.locator('.physical-buttons')).to_be_visible()
     # Land on04, import a clearly marked test question via management UI.
     host.get_by_role('button',name='题库管理',exact=True).click()
     host.get_by_label('题目内容',exact=True).fill('自动化验证题（非正式题库）：请选择甲')
@@ -121,6 +147,7 @@ with sync_playwright() as p:
     expect(host.get_by_role('heading',name='自动化验证题（非正式题库）：请选择甲',exact=True)).to_be_visible()
     host.get_by_role('button',name='现场控制',exact=True).click()
     host.locator('.physical-buttons').get_by_role('button',name='4',exact=True).click()
+    expect(screen.locator('.special-event[data-kind="quiz"]')).to_be_visible(timeout=15000)
     expect(host.get_by_role('button',name='开始答题',exact=True)).to_be_visible(timeout=15000)
     host.get_by_role('combobox',name='选择题目',exact=True).select_option(label='自动化验证题（非正式题库）：请选择甲')
     host.get_by_role('button',name='开始答题',exact=True).click()
@@ -146,7 +173,11 @@ with sync_playwright() as p:
     expect(host.locator('.answer-details').get_by_text(re.compile('浏览器测试-上海SSC · A'))).to_be_visible()
     host.get_by_role('button',name='提前结束答题',exact=True).click()
     host.get_by_role('button',name='公布答案',exact=True).click()
-    expect(screen.get_by_text('回答正确！',exact=True)).to_be_visible()
+    success=screen.locator('.special-event[data-kind="correct"]')
+    expect(success).to_be_visible()
+    expect(success.locator('h2')).to_have_text('回答正确！')
+    expect(success.locator('.special-event-action')).to_have_text('前进3格')
+    expect(screen.locator('.screen-quiz')).to_have_count(0)
     expect(sh.get_by_text('答对了，向前出发！',exact=True)).to_be_visible()
     host.wait_for_function("document.querySelector('.current-turn')?.innerText.includes('本队回合完成')",timeout=15000)
     assert state()['teams']['shanghai']['position']==7

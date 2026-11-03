@@ -7,6 +7,7 @@ export const phaseNames: Record<string, string> = {
   awaiting_dice: "等待投骰",
   rolling: "骰子滚动中",
   moving: "棋子移动中",
+  tile_event: "特殊格特效展示中",
   quiz_ready: "等待主持人开启答题",
   answering: "全队答题中",
   quiz_closed: "答题结束 · 等待公布",

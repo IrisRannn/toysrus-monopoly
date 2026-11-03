@@ -756,11 +756,11 @@ function QuizControl({
               <button
                 className="secondary"
                 disabled={
-                  game.busy || s.status !== "running" || s.phase !== "revealed"
+                  game.busy || s.status !== "running" || s.phase !== "revealed" || !!s.presentation
                 }
                 onClick={() => void game.cmd("applyAnswer")}
               >
-                立即执行答题结果
+                {s.presentation ? "特效展示后自动执行" : "立即执行答题结果"}
               </button>
             </div>
             {quiz.result && (

@@ -9,6 +9,7 @@ import {
   rankings,
 } from "../../shared/gameRules.js";
 import { tilePositions } from "../../shared/tilePositions.js";
+import { tileMessages } from "../../shared/tileMessages.js";
 import {
   BUILTIN_QUESTIONS,
   QUESTION_BANK_VERSION,
@@ -37,6 +38,7 @@ const gameFields = [
   "currentTeam",
   "dice",
   "movement",
+  "presentation",
   "quiz",
   "transitionAt",
   "usedQuestions",
@@ -78,6 +80,7 @@ export function freshGame() {
     currentTeam: "east",
     dice: null,
     movement: null,
+    presentation: null,
     quiz: null,
     transitionAt: null,
     usedQuestions: [],
@@ -144,6 +147,7 @@ function move(s, to, kind, now) {
   const team = s.teams[s.currentTeam],
     from = team.position;
   team.position = clampPosition(to);
+  s.presentation = null;
   s.movement = {
     team: team.id,
     from,
@@ -156,6 +160,38 @@ function move(s, to, kind, now) {
   s.transitionAt = now + s.movement.duration;
   event(s, "move", `${team.name}：${from} → ${team.position}格`);
   finish(s, team, now);
+}
+function present(s, tile, kind, now) {
+  const correct = kind === "correct";
+  const effect = correct
+    ? tile.id === 15 ? "直达终点" : `前进${tile.effect}格`
+    : tile.type === "quiz"
+      ? tile.id === 15 ? "答对直达终点" : `答对前进${tile.effect}格`
+      : tile.type === "finish"
+        ? "成功冲线！"
+        : `${tile.effect > 0 ? "前进" : "后退"}${Math.abs(tile.effect)}格`;
+  s.presentation = {
+    id: randomUUID(),
+    team: s.currentTeam,
+    tile: tile.id,
+    kind,
+    icon: correct ? "🏆" : tile.icon,
+    title: correct ? "回答正确！" : tileMessages[tile.id],
+    effect,
+    startedAt: now,
+    endsAt: now + 2500,
+  };
+  s.transitionAt = s.presentation.endsAt;
+}
+function applyTile(s, tile, now) {
+  s.presentation = null;
+  if (tile.type === "quiz") {
+    s.phase = "quiz_ready";
+    s.transitionAt = null;
+    event(s, "quiz_ready", "等待主持人选题并开始答题");
+  } else if (tile.type === "reward" || tile.type === "penalty") {
+    move(s, s.teams[s.currentTeam].position + tile.effect, "effect", now);
+  } else complete(s, now);
 }
 function canAutoAdvance(s) {
   return (
@@ -172,6 +208,7 @@ function scheduleNextTurn(s, now) {
     : null;
 }
 function complete(s, now) {
+  s.presentation = null;
   s.phase = "turn_complete";
   scheduleNextTurn(s, now);
   if (Object.values(s.teams).every((t) => t.finishOrder)) {
@@ -196,6 +233,7 @@ function next(s, _now, actor = "system") {
       s.dice = null;
       s.quiz = null;
       s.movement = null;
+      s.presentation = null;
       s.transitionAt = null;
       event(s, "next", `第${s.round}轮 · ${team.name}回合开始`, actor);
       return;
@@ -233,17 +271,14 @@ export function tick(s, now = Date.now()) {
       "landing",
       `${team.name}落在${String(tile.id).padStart(2, "0")} · ${tile.name}`,
     );
-    if (tile.type === "quiz") {
-      s.phase = "quiz_ready";
-      event(s, "quiz_ready", "等待主持人选题并开始答题");
-    } else if (tile.type === "reward" || tile.type === "penalty") {
-      event(
-        s,
-        tile.type,
-        `${tile.icon} ${tile.name}：${tile.effect > 0 ? "前进" : "后退"}${Math.abs(tile.effect)}格`,
-      );
-      move(s, team.position + tile.effect, "effect", now);
-    } else complete(s, now);
+    if (tile.type === "normal") complete(s, now);
+    else {
+      s.phase = "tile_event";
+      present(s, tile, tile.type, now);
+      event(s, "tile_event", `${tileMessages[tile.id]} ${s.presentation.effect}`);
+    }
+  } else if (s.phase === "tile_event") {
+    applyTile(s, landing(s.presentation.tile), now);
   } else if (s.phase === "revealed") applyAnswer(s, now);
   else if (s.phase === "turn_complete") {
     // Recheck the exceptions before executing a persisted timer.
@@ -253,6 +288,7 @@ export function tick(s, now = Date.now()) {
 }
 function applyAnswer(s, now) {
   requireThat(s.phase === "revealed", "请先公布答案");
+  requireThat(!s.presentation || now >= s.presentation.endsAt, "请等待特效展示结束");
   if (s.quiz.result.correct) {
     const tile = landing(s.teams[s.currentTeam].position);
     event(
@@ -379,6 +415,10 @@ export function command(
     if (s.transitionAt) s.transitionAt += delta;
     if (s.quiz?.endsAt) s.quiz.endsAt += delta;
     if (s.movement) s.movement.startedAt += delta;
+    if (s.presentation) {
+      s.presentation.startedAt += delta;
+      s.presentation.endsAt += delta;
+    }
     s.status = "running";
     s.pausedAt = null;
     record(s, "resume", "游戏恢复");
@@ -393,6 +433,7 @@ export function command(
     requireThat(["running", "paused"].includes(s.status), "游戏未进行");
     s.status = "finished";
     s.transitionAt = null;
+    s.presentation = null;
     s.undo = null;
     record(s, "end", "主持人提前结束游戏，未冲线队伍按位置排名");
   } else if (
@@ -484,6 +525,7 @@ export function command(
     );
     s.quiz = {
       id: randomUUID(),
+      tile: current().position,
       question: clone(question),
       answers: {},
       startedAt: now,
@@ -530,7 +572,9 @@ export function command(
     requireThat(s.phase === "quiz_closed", "请先结束答题");
     s.quiz.result = tally(s.quiz.answers, s.quiz.question.answer);
     s.phase = "revealed";
-    s.transitionAt = now + 2200;
+    s.transitionAt = now + 2500;
+    if (s.quiz.result.correct)
+      present(s, landing(current().position), "correct", now);
     s.undo = null;
     record(
       s,
@@ -748,6 +792,7 @@ function restore(s) {
   const paused = s.status === "paused",
     pausedAt = s.pausedAt;
   Object.assign(s, clone(s.undo.game));
+  s.presentation = clone(s.undo.game.presentation ?? null);
   // Undoing a team change should leave time for the host to inspect/correct it.
   if (s.phase === "turn_complete") s.transitionAt = null;
   if (paused && s.status === "running") {
@@ -839,6 +884,7 @@ export function publicState(s, actor, online = new Set(), shared = null) {
     ),
     dice: s.dice,
     movement: s.movement,
+    presentation: s.presentation ?? null,
     lastTile: s.lastTile,
     positions: s.positions,
     settings: s.settings,
@@ -854,6 +900,7 @@ export function publicState(s, actor, online = new Set(), shared = null) {
     quiz: q
       ? {
           id: q.id,
+          tile: q.tile ?? (q.question.tile || s.lastTile),
           question: {
             id: q.question.id,
             tile: q.question.tile,

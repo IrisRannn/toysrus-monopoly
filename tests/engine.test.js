@@ -150,7 +150,7 @@ test("normal, reward, penalty and finish turns auto-advance only after all movem
     s.teams.east.position = tile.id - 1;
     start(s);
     onlineRoll(s, 1);
-    while (["rolling", "moving"].includes(s.phase)) {
+    while (["rolling", "moving", "tile_event"].includes(s.phase)) {
       assert.equal(s.currentTeam, "east");
       assert.equal(publicState(s, host).autoNextAt, null);
       tick(s, s.transitionAt);
@@ -271,6 +271,110 @@ test("old rooms enable selective automation once and preserve later host choices
   assert(upgradeTurnAutomation(paused, NOW + 100000));
   assert.equal(paused.transitionAt, paused.pausedAt + 1800);
   assert.equal(tick(paused, NOW + 100000), false);
+});
+test("every special landing holds a server-timed 2.5 second presentation before its action", () => {
+  for (const tile of TILES.filter((t) => t.type !== "normal")) {
+    const s = room();
+    s.teams.east.position = tile.id - 1;
+    start(s);
+    onlineRoll(s, 1);
+    tick(s, s.transitionAt);
+    tick(s, s.transitionAt);
+    assert.equal(s.phase, "tile_event");
+    assert.equal(s.teams.east.position, tile.id);
+    assert.equal(s.presentation.tile, tile.id);
+    assert.equal(s.presentation.kind, tile.type);
+    assert(s.presentation.title);
+    const due = s.presentation.endsAt;
+    assert.equal(due - s.presentation.startedAt, 2500);
+    assert.equal(tick(s, due - 1), false);
+    assert.equal(s.teams.east.position, tile.id);
+    assert.throws(() => command(s, host, "next", {}, due - 1), /先完成/);
+    if (tile.type === "quiz")
+      assert.throws(() => command(s, host, "startQuiz", {}, due - 1), /待答题格/);
+    tick(s, due);
+    assert.equal(s.presentation, null);
+    if (["reward", "penalty"].includes(tile.type)) {
+      assert.equal(s.phase, "moving");
+      assert.equal(s.movement.kind, "effect");
+      assert.equal(s.teams.east.position, Math.min(20, tile.id + tile.effect));
+    } else assert.equal(s.phase, tile.type === "quiz" ? "quiz_ready" : "turn_complete");
+  }
+  const ordinary = room();
+  start(ordinary);
+  onlineRoll(ordinary, 1);
+  settle(ordinary);
+  assert.equal(ordinary.presentation, null);
+  assert.equal(ordinary.events.filter((e) => e.type === "tile_event").length, 0);
+});
+test("dinosaur 6-to-4 presentation never chains a second quiz or effect", () => {
+  const s = room();
+  start(s);
+  onlineRoll(s, 6);
+  tick(s, s.transitionAt);
+  tick(s, s.transitionAt);
+  assert.equal(s.presentation.title, "糟糕！调皮恐龙拦住去路！");
+  assert.equal(s.presentation.effect, "后退2格");
+  assert.equal(s.teams.east.position, 6);
+  tick(s, s.transitionAt);
+  assert.equal(s.movement.to, 4);
+  settle(s);
+  assert.equal(s.phase, "turn_complete");
+  assert.equal(s.teams.east.position, 4);
+  assert.equal(s.quiz, null);
+  assert.deepEqual(s.usedQuestions, []);
+  assert.equal(s.events.filter((e) => e.type === "tile_event").length, 1);
+  assert.equal(s.events.filter((e) => e.type === "quiz_ready").length, 0);
+});
+test("correct-answer presentation cannot be skipped and common-pool tile15 still shows direct finish", () => {
+  for (const tile of [4, 15, 16]) {
+    const s = room();
+    s.teams.east.position = tile - 1;
+    start(s);
+    onlineRoll(s, 1);
+    settle(s);
+    command(s, host, "startQuiz", {}, NOW);
+    assert.equal(s.quiz.question.tile, 0);
+    assert.equal(publicState(s, host).quiz.tile, tile);
+    command(s, player("east"), "answer", { option: s.quiz.question.answer }, NOW + 1);
+    command(s, host, "closeQuiz", {}, NOW + 2);
+    command(s, host, "reveal", {}, NOW + 3);
+    const due = s.transitionAt;
+    assert.equal(due, NOW + 2503);
+    assert.equal(s.presentation.kind, "correct");
+    assert.equal(s.presentation.effect, tile === 15 ? "直达终点" : "前进3格");
+    assert.equal(tick(s, due - 1), false);
+    assert.throws(() => command(s, host, "applyAnswer", {}, due - 1), /展示结束/);
+    assert.equal(s.teams.east.position, tile);
+    tick(s, due);
+    assert.equal(s.presentation, null);
+    assert.equal(s.movement.kind, "answer");
+    settle(s);
+    assert.equal(s.teams.east.position, tile === 15 ? 20 : tile + 3);
+    assert.equal(s.phase, "turn_complete");
+    assert.equal(s.transitionAt, null);
+    assert.equal(s.events.filter((e) => e.type === "tile_event").length, 1);
+  }
+});
+test("special presentation pauses, resumes and undoes without leaving stale effects", () => {
+  const s = room();
+  start(s);
+  onlineRoll(s, 6);
+  tick(s, s.transitionAt);
+  tick(s, s.transitionAt);
+  const before = structuredClone(s.presentation);
+  command(s, host, "pause", {}, before.startedAt + 100);
+  assert.equal(tick(s, before.endsAt + 10000), false);
+  command(s, host, "resume", {}, before.startedAt + 10100);
+  assert.equal(s.presentation.startedAt, before.startedAt + 10000);
+  assert.equal(s.presentation.endsAt, before.endsAt + 10000);
+  assert.equal(s.transitionAt, s.presentation.endsAt);
+  delete s.undo.game.presentation; // A checkpoint saved by the previous release.
+  command(s, host, "undo", {}, before.startedAt + 10200);
+  assert.equal(s.presentation, null);
+  assert.equal(s.phase, "awaiting_dice");
+  assert.equal(s.transitionAt, null);
+  assert.equal(s.teams.east.position, 0);
 });
 test("10 concurrent-style answers, updates replace old vote; plurality <50% still correct", () => {
   const s = toQuiz();

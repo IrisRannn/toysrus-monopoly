@@ -49,6 +49,7 @@ export interface GameEvent {
 }
 export interface Quiz {
   id: string;
+  tile: number;
   question: Question;
   endsAt: number;
   submitted: number;
@@ -90,6 +91,17 @@ export interface GameState {
     kind: string;
     startedAt: number;
     duration: number;
+  };
+  presentation: null | {
+    id: string;
+    team: TeamId;
+    tile: number;
+    kind: "reward" | "penalty" | "quiz" | "finish" | "correct";
+    icon: string;
+    title: string;
+    effect: string;
+    startedAt: number;
+    endsAt: number;
   };
   lastTile: number | null;
   positions: Position[];
