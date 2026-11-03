@@ -720,10 +720,30 @@ export function prizeCandidates(s) {
     })),
   };
 }
-export function publicState(s, actor, online = new Set()) {
+export function publicState(s, actor, online = new Set(), shared = null) {
   const host = actor.role === "host",
     me = s.players[actor.playerId],
     q = s.quiz;
+  // The caller supplies a screen-safe snapshot for this exact room version.
+  // Reuse shared counts and history while keeping each player's answer private.
+  if (shared && !host)
+    return {
+      ...shared,
+      me: me
+        ? {
+            id: me.id,
+            nickname: me.nickname,
+            team: me.team,
+            removed: !!me.removed,
+          }
+        : null,
+      quiz: shared.quiz
+        ? {
+            ...shared.quiz,
+            myAnswer: q.answers[actor.playerId]?.option ?? null,
+          }
+        : null,
+    };
   const result = {
     code: s.code,
     version: s.version,

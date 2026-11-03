@@ -2238,3 +2238,11 @@ td .pill {
   top: 61%;
   width: 23%;
 }
+.request-pending {
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border-radius: 8px;
+  background: #fff7e9;
+  color: #92704b;
+  font-size: 12px;
+}

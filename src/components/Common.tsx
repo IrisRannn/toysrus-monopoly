@@ -37,6 +37,10 @@ export function ErrorBar({ game }: { game: GameConnection }) {
         ×
       </button>
     </div>
+  ) : game.busy ? (
+    <div className="request-pending" role="status">
+      正在提交，请稍候…
+    </div>
   ) : null;
 }
 export function RoomForm({ role }: { role: "host" | "player" | "screen" }) {

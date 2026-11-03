@@ -192,18 +192,29 @@ export async function createStore({
     fs.existsSync(absolute) ? fs.readFileSync(absolute) : undefined,
   );
   db.run(sqliteSchema);
-  const persist = () => {
-    const tmp = absolute + ".tmp";
-    const fd = fs.openSync(tmp, "w", 0o600);
-    try {
-      fs.writeFileSync(fd, Buffer.from(db.export()));
-      fs.fsyncSync(fd);
-    } finally {
-      fs.closeSync(fd);
+  let durableBytes;
+  const sqliteWriteKey = Symbol("sqlite writes");
+  const waitForWrites = async () => {
+    while (queues.has(sqliteWriteKey)) {
+      const pending = queues.get(sqliteWriteKey);
+      await pending.catch(() => {});
+      if (queues.get(sqliteWriteKey) === pending) break;
     }
-    fs.renameSync(tmp, absolute);
   };
-  persist();
+  const persist = async () => {
+    const tmp = absolute + ".tmp";
+    const bytes = Buffer.from(db.export());
+    const file = await fs.promises.open(tmp, "w", 0o600);
+    try {
+      await file.writeFile(bytes);
+      await file.sync();
+    } finally {
+      await file.close();
+    }
+    await fs.promises.rename(tmp, absolute);
+    durableBytes = bytes;
+  };
+  await persist();
   const read = (code) => {
     const stmt = db.prepare("SELECT state FROM game_rooms WHERE code=?");
     try {
@@ -215,19 +226,29 @@ export async function createStore({
   };
   return {
     kind: "sqlite",
-    read: async (code) => read(code),
-    codes: async () =>
-      db.exec("SELECT code FROM game_rooms")[0]?.values.map(([code]) => code) ??
-      [],
+    read: async (code) => {
+      await waitForWrites();
+      return read(code);
+    },
+    codes: async () => {
+      await waitForWrites();
+      return (
+        db
+          .exec("SELECT code FROM game_rooms")[0]
+          ?.values.map(([code]) => code) ?? []
+      );
+    },
     mutate(code, fn) {
-      return queue(code, () => {
+      // One SQLite file needs one write queue even when different rooms write.
+      // Filesystem I/O yields to the event loop; acknowledgement still waits for
+      // fsync and atomic rename, so a successful command remains durable.
+      return queue(sqliteWriteKey, async () => {
         const before = read(code),
           state = before ? structuredClone(before) : null;
         const result = fn(state),
           next = result?.state ?? state;
         if (!next) throw new GameError("房间不存在", 404);
         next.version = (before?.version ?? 0) + 1;
-        const backup = db.export();
         try {
           db.run("BEGIN IMMEDIATE");
           db.run(
@@ -258,7 +279,7 @@ export async function createStore({
               );
           }
           db.run("COMMIT");
-          persist();
+          await persist();
         } catch (e) {
           try {
             db.run("ROLLBACK");
@@ -266,14 +287,15 @@ export async function createStore({
             /* COMMIT may already have completed. */
           }
           db.close();
-          db = new SQL.Database(backup);
+          db = new SQL.Database(durableBytes);
           throw e;
         }
         return result?.value ?? next;
       });
     },
     close: async () => {
-      persist();
+      await waitForWrites();
+      await persist();
       db.close();
     },
   };

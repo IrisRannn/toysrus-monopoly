@@ -7,7 +7,7 @@ export function equal(a, b) {
     bb = Buffer.from(hash(String(b)));
   return timingSafeEqual(aa, bb);
 }
-export function authorize(s, role, credential) {
+export function authorize(s, role, credential, trustedPlayerId) {
   if (!s) throw new GameError("房间不存在", 404);
   if (role === "screen") return { role: "screen" };
   if (
@@ -17,8 +17,12 @@ export function authorize(s, role, credential) {
   )
     return { role: "host" };
   if (role === "player" && typeof credential === "string") {
-    const player = Object.values(s.players).find(
-      (p) => !p.removed && equal(p.tokenHash, hash(credential)),
+    const credentialHash = hash(credential);
+    const candidates = trustedPlayerId
+      ? [s.players[trustedPlayerId]]
+      : Object.values(s.players);
+    const player = candidates.find(
+      (p) => p && !p.removed && equal(p.tokenHash, credentialHash),
     );
     if (player) return { role: "player", playerId: player.id };
   }

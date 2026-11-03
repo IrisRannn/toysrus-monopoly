@@ -116,7 +116,9 @@ export default function Player() {
                       disabled={game.busy || !game.connected}
                       onClick={() => void game.cmd("claimRepresentative")}
                     >
-                      成为本回合投骰代表
+                      {game.pendingCommand === "claimRepresentative"
+                        ? "正在申请…"
+                        : "成为本回合投骰代表"}
                     </button>
                   ) : (
                     <p>
@@ -130,7 +132,9 @@ export default function Player() {
                       disabled={game.busy || !game.connected}
                       onClick={() => void game.cmd("roll")}
                     >
-                      🎲 投骰子
+                      {game.pendingCommand === "roll"
+                        ? "正在投骰…"
+                        : "🎲 投骰子"}
                     </button>
                   )}
                 </>
@@ -163,7 +167,7 @@ export default function Player() {
             {Object.entries(quiz.question.options).map(([key, text]) => (
               <button
                 key={key}
-                disabled={!canAnswer}
+                disabled={!canAnswer || game.pendingCommand === "answer"}
                 className={choice === key ? "selected" : ""}
                 onClick={() => setChoice(key)}
               >
@@ -180,7 +184,11 @@ export default function Player() {
                 disabled={!choice || game.busy || !game.connected}
                 onClick={() => void game.cmd("answer", { option: choice })}
               >
-                {quiz.myAnswer ? "更新我的答案" : "提交答案"}
+                {game.pendingCommand === "answer"
+                  ? "正在提交…"
+                  : quiz.myAnswer
+                    ? "更新我的答案"
+                    : "提交答案"}
               </button>
               <p className="muted">
                 {quiz.myAnswer

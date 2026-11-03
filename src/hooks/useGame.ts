@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import type { GameState } from "../types";
 export type Role = "host" | "player" | "screen";
@@ -56,7 +56,9 @@ export function useGame(role: Role) {
   const [connected, setConnected] = useState(false),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
+    [pendingCommand, setPendingCommand] = useState<string | null>(null),
     [offset, setOffset] = useState(0);
+  const inFlight = useRef(false);
   useEffect(() => {
     if (!/^\d{6}$/.test(room) || (role !== "screen" && !credential)) return;
     const s = io(import.meta.env.VITE_SOCKET_URL || "", {
@@ -82,12 +84,15 @@ export function useGame(role: Role) {
     };
   }, [room, role, credential]);
   const cmd = async (type: string, payload: unknown = {}) => {
+    if (inFlight.current) return false;
     setError("");
     if (!socket?.connected) {
       setError("连接已断开，恢复后再操作");
       return false;
     }
+    inFlight.current = true;
     setBusy(true);
+    setPendingCommand(type);
     try {
       const ack = await socket
         .timeout(8000)
@@ -98,7 +103,9 @@ export function useGame(role: Role) {
       setError(e instanceof Error ? e.message : "操作失败");
       return false;
     } finally {
+      inFlight.current = false;
       setBusy(false);
+      setPendingCommand(null);
     }
   };
   const logout = () => {
@@ -113,6 +120,7 @@ export function useGame(role: Role) {
     error,
     setError,
     busy,
+    pendingCommand,
     cmd,
     offset,
     logout,

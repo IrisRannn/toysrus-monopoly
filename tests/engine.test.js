@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { authorize, hash } from "../server/lib/auth.js";
 import {
   newRoom,
   command,
@@ -375,4 +376,38 @@ test("manual finish leaves a valid next turn and its audit records the host", ()
   command(s, host, "next", {}, NOW + 3);
   assert.equal(s.currentTeam, "central");
   assert.equal(s.events[s.events.length - 1].actor, "host");
+});
+
+test("shared broadcast views preserve each player private answer and cached identity still checks its token", () => {
+  const s = toQuiz();
+  s.players.other = {
+    id: "other",
+    nickname: "other",
+    team: "east",
+    removed: false,
+  };
+  command(s, player("east"), "answer", { option: "A" }, NOW + 1);
+  command(s, player("other"), "answer", { option: "B" }, NOW + 1);
+  const shared = publicState(s, { role: "screen" });
+  for (const id of ["east", "other"]) {
+    const fast = publicState(s, player(id), new Set(), shared);
+    const regular = publicState(s, player(id));
+    delete fast.serverTime;
+    delete regular.serverTime;
+    assert.deepEqual(fast, regular);
+    assert.equal(fast.quiz.answers, undefined);
+    assert.equal(fast.quiz.counts, undefined);
+    assert.equal(fast.quiz.question.answer, undefined);
+  }
+  assert.equal(shared.quiz.myAnswer, null);
+  s.players.east.tokenHash = hash("east-fixture-token");
+  s.players.other.tokenHash = hash("other-fixture-token");
+  assert.deepEqual(
+    authorize(s, "player", "east-fixture-token", "east"),
+    player("east"),
+  );
+  assert.throws(
+    () => authorize(s, "player", "east-fixture-token", "other"),
+    /凭证/,
+  );
 });

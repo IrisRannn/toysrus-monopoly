@@ -4,6 +4,7 @@ Creates its own room, approved questions are never fabricated in the live room.
 import json, re, os
 from playwright.sync_api import sync_playwright, expect
 BASE=os.environ.get('E2E_BASE_URL','http://127.0.0.1:5180')
+DELAY_ENDPOINT=os.environ.get('E2E_DELAY_ENDPOINT')
 errors=[]
 with sync_playwright() as p:
     browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox','--disable-dev-shm-usage'])
@@ -73,7 +74,11 @@ with sync_playwright() as p:
     host.get_by_role('button',name='▶ 开始游戏',exact=True).click()
     east=players[0]
     east.get_by_role('button',name='成为本回合投骰代表',exact=True).click()
+    if DELAY_ENDPOINT: ctx.request.post(BASE+DELAY_ENDPOINT,data={'ms':600})
     east.get_by_role('button',name='🎲 投骰子',exact=True).click()
+    if DELAY_ENDPOINT:
+        expect(east.get_by_role('button',name='正在投骰…',exact=True)).to_be_disabled()
+        ctx.request.post(BASE+DELAY_ENDPOINT,data={'ms':0})
     expect(host.locator('.current-turn')).to_contain_text('点')
     host.wait_for_function("document.querySelector('.current-turn')?.innerText.includes('本队回合完成') || document.querySelector('.current-turn')?.innerText.includes('等待主持人开启答题')",timeout=15000)
     after=state();assert after['teams']['east']['position']>0
@@ -110,7 +115,11 @@ with sync_playwright() as p:
     # All five players share a browser context; identities stay in each socket.
     assert 'answer' not in state('screen','')['quiz']['question']
     sh.get_by_role('button',name=re.compile('^A')).click()
+    if DELAY_ENDPOINT: ctx.request.post(BASE+DELAY_ENDPOINT,data={'ms':600})
     sh.get_by_role('button',name='提交答案',exact=True).click()
+    if DELAY_ENDPOINT:
+        expect(sh.get_by_role('button',name='正在提交…',exact=True)).to_be_disabled()
+        ctx.request.post(BASE+DELAY_ENDPOINT,data={'ms':0})
     expect(sh.get_by_text('已提交 A，截止前可修改。',exact=True)).to_be_visible()
     sh.get_by_role('button',name=re.compile('^B')).click()
     sh.get_by_role('button',name='更新我的答案',exact=True).click()

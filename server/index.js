@@ -61,24 +61,82 @@ export async function createApp(options = {}) {
         .filter((sock) => sock.data.code === code && sock.data.actor?.playerId)
         .map((sock) => sock.data.actor.playerId),
     );
+  const presenceVersions = new Map();
+  const pendingBroadcasts = new Map();
+  const activeBroadcasts = new Set();
+  let closing = false;
+  const updatePresence = (code) =>
+    presenceVersions.set(code, (presenceVersions.get(code) || 0) + 1);
+  const sendSnapshot = (
+    socket,
+    s,
+    connected,
+    shared,
+    hostView,
+    presence = presenceVersions.get(s.code) || 0,
+  ) => {
+    if (!socket.connected) return;
+    try {
+      const actor = authorize(
+        s,
+        socket.data.actor.role,
+        socket.data.credential,
+        socket.data.actor.playerId,
+      );
+      if (
+        socket.data.lastVersion > s.version ||
+        (socket.data.lastVersion === s.version &&
+          socket.data.lastPresence === presence)
+      )
+        return;
+      const view =
+        actor.role === "host"
+          ? hostView || publicState(s, actor, connected)
+          : shared
+            ? publicState(s, actor, connected, shared)
+            : publicState(s, actor, connected);
+      socket.emit("state:update", view);
+      socket.data.lastVersion = s.version;
+      socket.data.lastPresence = presence;
+    } catch {
+      socket.emit("session:revoked");
+      socket.disconnect(true);
+    }
+  };
   const broadcast = async (code) => {
     const s = await store.read(code);
     if (!s) return;
+    const presence = presenceVersions.get(code) || 0;
     const connected = online(code);
-    for (const socket of io.sockets.sockets.values())
-      if (socket.data.code === code) {
-        try {
-          const actor = authorize(
-            s,
-            socket.data.actor.role,
-            socket.data.credential,
-          );
-          socket.emit("state:update", publicState(s, actor, connected));
-        } catch {
-          socket.emit("session:revoked");
-          socket.disconnect(true);
-        }
-      }
+    const sockets = [...io.sockets.sockets.values()].filter(
+      (socket) => socket.data.code === code,
+    );
+    if (!sockets.length) {
+      presenceVersions.delete(code);
+      return;
+    }
+    const shared = publicState(s, { role: "screen" }, connected);
+    const hostView = sockets.some((socket) => socket.data.actor.role === "host")
+      ? publicState(s, { role: "host" }, connected)
+      : null;
+    for (const socket of sockets)
+      sendSnapshot(socket, s, connected, shared, hostView, presence);
+  };
+  const trackUpdate = (work) => {
+    activeBroadcasts.add(work);
+    void work
+      .catch((error) => console.error("Snapshot failure:", error.message))
+      .finally(() => activeBroadcasts.delete(work));
+  };
+  const scheduleBroadcast = (code) => {
+    if (closing || pendingBroadcasts.has(code)) return;
+    pendingBroadcasts.set(
+      code,
+      setTimeout(() => {
+        pendingBroadcasts.delete(code);
+        trackUpdate(broadcast(code));
+      }, 40),
+    );
   };
   const authHttp = async (req) => {
     const s = await store.read(req.params.code);
@@ -101,13 +159,21 @@ export async function createApp(options = {}) {
   }
   const wrap = (fn) => (req, res, next) =>
     Promise.resolve(fn(req, res)).catch(next);
-  const perform = async (code, role, credential, type, payload) => {
-    await store.mutate(code, (s) => {
-      const actor = authorize(s, role, credential);
+  const perform = async (
+    code,
+    role,
+    credential,
+    type,
+    payload,
+    trustedPlayerId,
+  ) => {
+    const state = await store.mutate(code, (s) => {
+      const actor = authorize(s, role, credential, trustedPlayerId);
       if (actor.role === "screen") throw new GameError("大屏为只读界面", 403);
       command(s, actor, type, payload);
     });
-    await broadcast(code);
+    scheduleBroadcast(code);
+    return state;
   };
   const assetDir = path.join(root, "data", "assets");
   app.get("/api/board-image", (_req, res) => {
@@ -153,7 +219,7 @@ export async function createApp(options = {}) {
       await store.mutate(req.params.code, (s) => {
         event(s, "background", "主持人上传原始棋盘图片，保留原始字节");
       });
-      await broadcast(req.params.code);
+      scheduleBroadcast(req.params.code);
       res.json({ ok: true });
     }),
   );
@@ -190,7 +256,7 @@ export async function createApp(options = {}) {
         s.hostHash = hash(credential);
         event(s, "host_enter", "主持人进入房间，旧主持人会话失效");
       });
-      await broadcast(req.params.code);
+      scheduleBroadcast(req.params.code);
       res.json({ code: req.params.code, token: credential });
     }),
   );
@@ -214,7 +280,7 @@ export async function createApp(options = {}) {
         };
         command(s, { role: "player", playerId: id }, "join", req.body);
       });
-      await broadcast(req.params.code);
+      scheduleBroadcast(req.params.code);
       res.status(201).json({ token: credential, playerId: id });
     }),
   );
@@ -364,7 +430,18 @@ export async function createApp(options = {}) {
     }
   });
   io.on("connection", (socket) => {
-    void broadcast(socket.data.code);
+    if (closing) {
+      socket.disconnect(true);
+      return;
+    }
+    updatePresence(socket.data.code);
+    trackUpdate(
+      (async () => {
+        const s = await store.read(socket.data.code);
+        if (s) sendSnapshot(socket, s, online(s.code));
+      })(),
+    );
+    scheduleBroadcast(socket.data.code);
     socket.on(
       "command",
       async ({ type, payload = {} } = {}, ack = () => {}) => {
@@ -372,13 +449,17 @@ export async function createApp(options = {}) {
           limit("socket:" + socket.id, 180, 60000);
           if (type === "importQuestions")
             throw new GameError("请通过HTTP接口导入题库");
-          await perform(
+          const state = await perform(
             socket.data.code,
             socket.data.actor.role,
             socket.data.credential,
             type,
             payload,
+            socket.data.actor.playerId,
           );
+          // Confirm the sender immediately after its durable transaction.
+          // Other clients receive one coalesced snapshot per short interval.
+          sendSnapshot(socket, state, online(state.code));
           ack({ ok: true });
         } catch (e) {
           ack({
@@ -389,7 +470,10 @@ export async function createApp(options = {}) {
         }
       },
     );
-    socket.on("disconnect", () => void broadcast(socket.data.code));
+    socket.on("disconnect", () => {
+      updatePresence(socket.data.code);
+      scheduleBroadcast(socket.data.code);
+    });
   });
   let ticking = false;
   const timer = setInterval(async () => {
@@ -407,7 +491,7 @@ export async function createApp(options = {}) {
           await store.mutate(code, (s) => {
             tick(s);
           });
-          await broadcast(code);
+          scheduleBroadcast(code);
         }
       }
     } catch (e) {
@@ -440,9 +524,13 @@ export async function createApp(options = {}) {
     io,
     store,
     close: async () => {
+      closing = true;
       clearInterval(timer);
       clearInterval(cleanup);
+      for (const timer of pendingBroadcasts.values()) clearTimeout(timer);
+      pendingBroadcasts.clear();
       await new Promise((resolve) => io.close(resolve));
+      await Promise.allSettled([...activeBroadcasts]);
       await store.close();
     },
   };

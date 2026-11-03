@@ -200,3 +200,102 @@ test("CSV/XLSX validate real files, reject empty or invalid rows, formula-safe e
     ),
   );
 });
+
+test("a burst of commands is acknowledged durably while screen snapshots are coalesced", async () => {
+  const directory = await fs.mkdtemp(
+    path.join(os.tmpdir(), "monopoly-broadcast-"),
+  );
+  const app = await fixture(path.join(directory, "state.sqlite"));
+  const sockets = [];
+  try {
+    const created = (await api(app.url, "/api/rooms", {})).body;
+    const screen = io(app.url, {
+      auth: { room: created.code, role: "screen" },
+      transports: ["websocket"],
+    });
+    sockets.push(screen);
+    const initial = await waitState(screen, (s) => s.code === created.code);
+    const host = io(app.url, {
+      auth: { room: created.code, role: "host", token: created.token },
+      transports: ["websocket"],
+    });
+    sockets.push(host);
+    await waitState(host, (s) => s.code === created.code);
+    const versions = [];
+    screen.on("state:update", (s) => {
+      if (s.version > initial.version) versions.push(s.version);
+    });
+    const updated = waitState(screen, (s) => s.version >= initial.version + 8);
+    const results = await Promise.all(
+      Array.from({ length: 8 }, (_, i) =>
+        host.timeout(5000).emitWithAck("command", {
+          type: "settings",
+          payload: { answerSeconds: 20 + i },
+        }),
+      ),
+    );
+    assert(results.every((r) => r.ok));
+    const final = await updated;
+    assert.equal(final.settings.answerSeconds, 27);
+    assert(
+      versions.length < 8,
+      `expected coalescing, got ${versions.length} snapshots`,
+    );
+    assert.equal((await app.store.read(created.code)).version, final.version);
+  } finally {
+    for (const socket of sockets) socket.disconnect();
+    await app.close();
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("revoking one player updates every remaining connection online count", async () => {
+  const directory = await fs.mkdtemp(
+    path.join(os.tmpdir(), "monopoly-presence-"),
+  );
+  const app = await fixture(path.join(directory, "state.sqlite"));
+  const sockets = [];
+  try {
+    const room = (await api(app.url, "/api/rooms", {})).body;
+    const first = (
+      await api(app.url, `/api/rooms/${room.code}/players`, {
+        team: "east",
+        nickname: "first",
+      })
+    ).body;
+    const second = (
+      await api(app.url, `/api/rooms/${room.code}/players`, {
+        team: "east",
+        nickname: "second",
+      })
+    ).body;
+    for (const [role, token] of [
+      ["host", room.token],
+      ["player", first.token],
+      ["player", second.token],
+    ]) {
+      const socket = io(app.url, {
+        auth: { room: room.code, role, token },
+        transports: ["websocket"],
+      });
+      sockets.push(socket);
+      await waitState(socket, (s) => s.code === room.code);
+    }
+    const remaining = sockets[2];
+    const updated = waitState(remaining, (s) => s.onlineCount === 1);
+    const removed = await api(
+      app.url,
+      `/api/rooms/${room.code}/commands`,
+      { type: "removePlayer", payload: { playerId: first.playerId } },
+      room.token,
+    );
+    assert.equal(removed.status, 200);
+    const final = await updated;
+    assert.equal(final.teams.east.members, 1);
+    assert.equal(final.teams.east.online, 1);
+  } finally {
+    for (const socket of sockets) socket.disconnect();
+    await app.close();
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});

@@ -67,3 +67,5 @@ supabase/migrations/          PostgreSQL表、索引和RLS
 浏览器localStorage只存房间身份凭证，不存权威游戏进度。主持人重新进入房间会刷新主持人会话。SQLite需要单进程持久化卷，PostgreSQL写入使用房间锁；实时广播目前也要求单应用实例。部署使用HTTPS；主持人入口按用户要求免口令，能进入该入口的人可管理房间。
 
 当前 Render 免费版使用临时 SQLite：刷新页面、断线重连可恢复同一服务实例中的游戏状态，但重启、休眠后更换实例或重新部署可能清空数据。长期保存可另接 PostgreSQL，不会自动开通付费磁盘。
+
+四玩家操作响应排查与可复测脚本见 [docs/PERFORMANCE.md](docs/PERFORMANCE.md)，本地基准可运行 `npm run benchmark:four`。线上网络和1500人容量仍需专项实测。
