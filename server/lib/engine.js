@@ -112,6 +112,7 @@ export function newRoom(code, hostHash) {
     turnAutomationVersion: TURN_AUTOMATION_VERSION,
     audio: clone(DEFAULT_AUDIO),
     brandAssetsVersion: BRAND_ASSETS_VERSION,
+    stageAudioVersion: 1,
     undo: null,
   };
 }
@@ -149,6 +150,15 @@ export function upgradeBrandAssets(s) {
   s.audio = audio;
   s.brandAssetsVersion = BRAND_ASSETS_VERSION;
   event(s, "brand_assets", "更新品牌色板并接入正式内置BGM");
+  return true;
+}
+export function upgradeStageAudio(s) {
+  if (s.stageAudioVersion === 1) return false;
+  const audio = audioState(s);
+  if (audio.effectsVolume > 0) audio.effectsVolume = Math.max(0.9, audio.effectsVolume);
+  s.audio = audio;
+  s.stageAudioVersion = 1;
+  event(s, "audio", "提高现场音效音量，动作期间自动降低背景音乐");
   return true;
 }
 function checkpoint(s, label) {

@@ -71,6 +71,8 @@ try {
       .emitWithAck("command", { type, payload });
     if (!r.ok) throw Error(r.error);
   };
+  // The seed is a private temporary copy; the fixed event room may already be running.
+  await hostCommand("reset", { confirm: room.code });
   await hostCommand("setOrder", {
     order: ["shanghai", "east", "central", "north", "west"],
   });

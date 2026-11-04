@@ -46,6 +46,44 @@ const waitState = (socket, predicate) =>
     }
     socket.on("state:update", listener);
   });
+test("fixed room 261218 reopens atomically without losing players, progress, questions or settings", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "monopoly-fixed-room-"));
+  const file = path.join(directory, "state.sqlite");
+  let app = await fixture(file);
+  try {
+    const first = await api(app.url, "/api/rooms", {});
+    assert.equal(first.status, 201);
+    assert.equal(first.body.code, "261218");
+    const code = first.body.code;
+    const player = (await api(app.url, `/api/rooms/${code}/players`, { team: "east", nickname: "固定房间员工" })).body;
+    await api(app.url, `/api/rooms/${code}/commands`, { type: "manualMove", payload: { team: "east", position: 9, reason: "固定房间进度测试" } }, first.body.token);
+    await api(app.url, `/api/rooms/${code}/commands`, { type: "audioSettings", payload: { bgmVolume: 0.12 } }, first.body.token);
+    const before = await app.store.read(code);
+    const reopened = await Promise.all(Array.from({ length: 4 }, () => api(app.url, "/api/rooms", {})));
+    assert(reopened.every((r) => r.status === 200 && r.body.code === code));
+    assert.deepEqual(await app.store.codes(), [code]);
+    const after = await app.store.read(code);
+    assert.deepEqual(after.teams, before.teams);
+    assert.deepEqual(after.players, before.players);
+    assert.deepEqual(after.questions, before.questions);
+    assert.deepEqual(after.audio, before.audio);
+    assert.equal((await api(app.url, `/api/rooms/${code}/state`, null, first.body.token)).status, 401);
+    assert.equal((await api(app.url, `/api/rooms/${code}/state`, null, player.token, "player")).status, 200);
+    await app.close();
+    app = await fixture(file);
+    const entered = await api(app.url, `/api/rooms/${code}/host-session`, {});
+    assert.equal(entered.status, 200);
+    assert.equal((await app.store.read(code)).teams.east.position, 9);
+    assert.equal((await api(app.url, "/api/rooms/888888/host-session", {})).status, 404);
+    await app.close();
+    app = await fixture(path.join(directory, "fresh.sqlite"));
+    assert.equal((await api(app.url, "/api/rooms/261218/host-session", {})).status, 200);
+    assert.equal((await app.store.read("261218")).questions.length, 19);
+  } finally {
+    await app.close();
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});
 test("BGM upload is authenticated, bounded, streamed and retained across database restart", async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "monopoly-bgm-"));
   const file = path.join(directory, "state.sqlite");

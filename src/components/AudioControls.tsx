@@ -55,7 +55,7 @@ export default function AudioControls({ game, state }: { game: GameConnection; s
           <label className="check-label">
             <input type="checkbox" checked={state.audio.effectsEnabled} disabled={disabled}
               onChange={(e) => void game.cmd("audioSettings", { effectsEnabled: e.target.checked })} />
-            开启特殊格与棋子脚步音效
+            开启摇骰、特殊格与棋子脚步音效
           </label>
           <label>音效音量 · {Math.round(effectsVolume * 100)}%
             <input type="range" min="0" max="100" value={Math.round(effectsVolume * 100)} disabled={disabled}
@@ -63,7 +63,7 @@ export default function AudioControls({ game, state }: { game: GameConnection; s
               onPointerUp={(e) => volume("effectsVolume", e.currentTarget.value)}
               onKeyUp={(e) => volume("effectsVolume", e.currentTarget.value)} />
           </label>
-          <p className="muted">开心前进、倒霉后退、答题提示和成功庆祝；棋子移动时播放轻快脚步声。</p>
+          <p className="muted">摇骰声、清晰脚步声、奖励飞行“咻”声及答题提示；动作期间自动压低BGM，结束后恢复。</p>
         </div>
         <div>
           <h3>背景音乐 BGM</h3>

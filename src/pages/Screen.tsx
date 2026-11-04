@@ -36,7 +36,9 @@ export default function Screen() {
       (["answering", "quiz_closed", "revealed"].includes(s.phase) ||
         (s.phase === "turn_complete" && !!quiz.result)),
     latest = s.events[s.events.length - 1],
-    tile = TILES.find((t) => t.id === s.lastTile);
+    tile = TILES.find((t) => t.id === s.lastTile),
+    showDice = s.dice && !s.presentation && !showQuiz && s.status !== "finished" &&
+      (s.phase === "rolling" || (s.phase === "moving" && s.movement?.kind === "dice" && now < s.movement.startedAt + 1100));
   return (
     <main className="screen-app">
       <div className="screen-stage">
@@ -53,7 +55,7 @@ export default function Screen() {
         </header>
         <ScreenAudio state={s} offset={game.offset} />
         <div
-          className="screen-focus"
+          className={"screen-focus" + (showDice ? " dice-active" : "")}
           style={{ "--team-color": team.color } as React.CSSProperties}
         >
           <div className="eyebrow">
@@ -71,24 +73,23 @@ export default function Screen() {
                 ? "本队回合完成，即将自动切换下一队"
                 : phaseNames[s.phase]}
           </p>
-          {s.dice && (
-            <div className="screen-dice">
-              <Dice
-                value={s.dice.value}
-                rolling={s.phase === "rolling" && s.status === "running"}
-              />
-              <strong>
-                {s.dice.value}
-                <small>点</small>
-              </strong>
-            </div>
-          )}
           {tile && (
             <div className="landing-caption">
               {tile.icon} {tile.name}
             </div>
           )}
         </div>
+        {showDice && s.dice && (
+          <div className="screen-dice" data-rolling={s.phase === "rolling"}>
+            <div className="screen-dice-content">
+              <div className="screen-dice-label">{team.name} · {s.phase === "rolling" ? "正在投骰" : "投骰结果"}</div>
+              <Dice value={s.dice.value} rolling={s.phase === "rolling" && s.status === "running"} />
+              <strong aria-live="polite">
+                {s.phase === "rolling" ? "好运转起来！" : <>{s.dice.value}<small>点</small></>}
+              </strong>
+            </div>
+          </div>
+        )}
         <aside className="screen-ranking">
           <div className="eyebrow">实时进度 · 先冲线者领先</div>
           <Ranking state={s} />
@@ -99,7 +100,7 @@ export default function Screen() {
           </span>
           <span>{s.onlineCount} 人在线</span>
         </div>
-        {latest && now - latest.at < 6000 && !showQuiz && !s.presentation && (
+        {latest && now - latest.at < 6000 && !showQuiz && !s.presentation && !showDice && (
           <div
             key={latest.id}
             className={"event-toast event-" + latest.type + " tile-" + tile?.id}

@@ -17,6 +17,7 @@ store.mutate = async (...args) => {
   return mutate(...args);
 };
 const app = await createApp({ store, assetDirectory: path.join(directory, "assets") });
+app.app.post("/_test/status", (_req, res) => res.json({ isolated: true }));
 app.app.post("/_test/delay", (req, res) => {
   milliseconds = Math.min(1000, Math.max(0, Number(req.body.ms) || 0));
   res.json({ ok: true });

@@ -1,14 +1,16 @@
 """Real-browser acceptance checks. Needs running dev app and Python Playwright.
-Creates its own room, approved questions are never fabricated in the live room.
+Requires tests/slow-server.mjs with a temporary database, never a live event room.
 """
 import json, re, os, io, math, struct, wave
 from playwright.sync_api import sync_playwright, expect
-BASE=os.environ.get('E2E_BASE_URL','http://127.0.0.1:5180')
+BASE=os.environ.get('E2E_BASE_URL','http://127.0.0.1:3003')
 DELAY_ENDPOINT=os.environ.get('E2E_DELAY_ENDPOINT')
 errors=[]
 with sync_playwright() as p:
     browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox','--disable-dev-shm-usage'])
     ctx=browser.new_context(viewport={'width':1440,'height':1000})
+    isolated=ctx.request.post(BASE+'/_test/status')
+    assert isolated.ok and isolated.json().get('isolated'), 'Browser checks require the isolated tests/slow-server.mjs fixture.'
     def page(context=ctx):
         x=context.new_page();x.on('pageerror',lambda e: errors.append(str(e)));return x
     host=page();host.goto(BASE+'/host?room=')
@@ -17,9 +19,11 @@ with sync_playwright() as p:
         host.evaluate("localStorage.clear()")
         host.reload()
     expect(host.locator('input[type=password]')).to_have_count(0)
-    host.get_by_role('button',name='＋ 创建新房间',exact=True).click()
+    expect(host.get_by_role('textbox',name='游戏房间号',exact=True)).to_have_value('261218')
+    host.get_by_role('button',name='进入年会房间 261218',exact=True).click()
     host.wait_for_url(re.compile(r'.*/host\?room=\d{6}'))
     code=host.url.split('room=')[1]
+    assert code=='261218'
     expect(host.get_by_role('heading',name='现场控制',exact=True)).to_be_visible()
     token=host.evaluate(f"localStorage.getItem('monopoly:{code}:host')")
     def api(kind,payload={}):
@@ -52,13 +56,19 @@ with sync_playwright() as p:
     expect(host.locator('.team-overview').get_by_text('1 人加入 · 1 人在线')).to_have_count(5)
     screen=page();screen.set_viewport_size({'width':1920,'height':1080})
     screen.add_init_script('''
-      window.__soundNotes=[];
+      window.__soundNotes=[];window.__soundSweeps=[];window.__sfxMeter=null;
       const OriginalAudioContext=window.AudioContext;
       window.AudioContext=class extends OriginalAudioContext {
+        createDynamicsCompressor(){
+          const node=super.createDynamicsCompressor();const meter=super.createAnalyser();
+          node.connect(meter);window.__sfxMeter=meter;return node;
+        }
         createOscillator(){
           const node=super.createOscillator(); let frequency=0;
           const set=node.frequency.setValueAtTime.bind(node.frequency);
           node.frequency.setValueAtTime=(value,time)=>{frequency=value;return set(value,time)};
+          const ramp=node.frequency.exponentialRampToValueAtTime.bind(node.frequency);
+          node.frequency.exponentialRampToValueAtTime=(value,time)=>{window.__soundSweeps.push({from:frequency,to:value});return ramp(value,time)};
           const start=node.start.bind(node);
           node.start=(time)=>{window.__soundNotes.push({frequency,type:node.type,at:performance.now()});return start(time)};
           return node;
@@ -141,6 +151,7 @@ with sync_playwright() as p:
     # Every possible roll from17 finishes without a quiz: verify real automatic
     # handoff using the backend's random dice, never sending a host next command.
     api('manualMove',{'team':'east','position':17,'reason':'独立测试房间验证普通回合自动切队'})
+    api('audioSettings',{'bgmEnabled':True})
     host.get_by_role('button',name='▶ 开始游戏',exact=True).click()
     east=players[0]
     east.get_by_role('button',name='成为本回合投骰代表',exact=True).click()
@@ -150,11 +161,21 @@ with sync_playwright() as p:
         expect(east.get_by_role('button',name='正在投骰…',exact=True)).to_be_disabled()
         ctx.request.post(BASE+DELAY_ENDPOINT,data={'ms':0})
     expect(host.locator('.current-turn')).to_contain_text('点')
-    assert screen.locator('.screen-dice .dice-stage').bounding_box()['width']>150
+    expect(screen.locator('.screen-dice[data-rolling=true]')).to_be_visible()
+    cube=screen.locator('.screen-dice .dice-stage').bounding_box()
+    assert cube['width']>=249 and abs(cube['x']+cube['width']/2-960)<2 and abs(cube['y']+cube['height']/2-540)<2,cube
+    screen.screenshot(path='/workspace/monopoly-centered-dice.png')
+    screen.wait_for_function("window.__soundNotes.filter(n=>n.frequency===780||n.frequency===920).length>=2")
+    screen.wait_for_function("document.querySelector('audio').volume<.05 && !document.querySelector('audio').paused")
+    screen.wait_for_function("(()=>{const a=window.__sfxMeter;if(!a)return false;const data=new Float32Array(a.fftSize);a.getFloatTimeDomainData(data);return Math.sqrt(data.reduce((sum,x)=>sum+x*x,0)/data.length)>.01})()")
+    expect(screen.locator('.screen-dice[data-rolling=false]')).to_be_visible()
+    expect(screen.locator('.screen-dice strong')).to_contain_text('点')
     expect(host.locator('.current-turn h2')).to_contain_text('中南区',timeout=15000)
     expect(players[1].get_by_role('button',name='成为本回合投骰代表',exact=True)).to_be_visible()
     after=state();assert after['teams']['east']['position']>=18
     assert after['currentTeam']=='central' and after['phase']=='awaiting_dice'
+    expect(screen.locator('.screen-dice')).to_have_count(0)
+    screen.wait_for_function("document.querySelector('audio').volume===.25")
     expect(screen.locator('[data-team=east]')).to_have_attribute('data-position',str(after['teams']['east']['position']))
     screen.reload();expect(screen.locator('[data-team=east]')).to_have_attribute('data-position',str(after['teams']['east']['position']))
     screen.get_by_role('button',name='开启大屏声音',exact=True).click()
@@ -198,6 +219,7 @@ with sync_playwright() as p:
     expect(reward).to_be_visible(timeout=15000)
     expect(reward.locator('.special-event-action')).to_have_text('前进5格')
     screen.wait_for_function("window.__soundNotes.some(n=>n.frequency===1046.5)")
+    assert screen.evaluate("window.__soundSweeps.some(n=>n.from===330 && n.to===1760)")
     api('audioSettings',{'effectsEnabled':False})
     screen.evaluate('window.__soundNotes=[]')
     host.wait_for_function("document.querySelector('.current-turn')?.innerText.includes('本队回合完成')",timeout=15000)

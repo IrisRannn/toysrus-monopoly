@@ -15,6 +15,12 @@ export default function ScreenAudio({ state, offset }: { state: GameState; offse
 
   useEffect(() => () => effects.current?.close(), []);
   useEffect(() => {
+    if (!enabled || muted || !state.audio.effectsEnabled || state.status !== "running" || state.phase !== "rolling") return;
+    effects.current?.roll();
+    const timer = setInterval(() => effects.current?.roll(), 95);
+    return () => clearInterval(timer);
+  }, [enabled, muted, state.audio.effectsEnabled, state.status, state.phase, state.dice?.at]);
+  useEffect(() => {
     effects.current?.volume(enabled && !muted && state.audio.effectsEnabled ? state.audio.effectsVolume : 0);
     if (muted || !state.audio.effectsEnabled || state.status === "paused") effects.current?.stop();
   }, [enabled, muted, state.audio.effectsEnabled, state.audio.effectsVolume, state.status]);
@@ -44,7 +50,9 @@ export default function ScreenAudio({ state, offset }: { state: GameState; offse
   useEffect(() => {
     const audio = media.current;
     if (!audio) return;
-    audio.volume = state.audio.bgmVolume * (state.presentation ? 0.45 : 1);
+    const action = state.audio.effectsEnabled && state.status === "running" &&
+      (state.presentation || state.phase === "rolling" || state.phase === "moving");
+    audio.volume = state.audio.bgmVolume * (action ? 0.18 : 1);
     audio.muted = !enabled || muted;
     if (enabled && !muted && state.audio.bgmEnabled && state.audio.bgm) {
       void audio.play().catch((reason) => {
@@ -53,7 +61,8 @@ export default function ScreenAudio({ state, offset }: { state: GameState; offse
       });
     } else audio.pause();
     if (!state.audio.bgm) setError("");
-  }, [enabled, muted, state.audio.bgm?.id, state.audio.bgmEnabled, state.audio.bgmVolume, state.presentation?.id]);
+  }, [enabled, muted, state.audio.bgm?.id, state.audio.bgmEnabled, state.audio.bgmVolume,
+    state.audio.effectsEnabled, state.presentation?.id, state.phase, state.status]);
 
   async function toggle() {
     setError("");

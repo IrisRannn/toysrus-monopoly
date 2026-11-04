@@ -11,6 +11,7 @@ import {
   validateQuestion,
   upgradeTurnAutomation,
   upgradeBrandAssets,
+  upgradeStageAudio,
 } from "../server/lib/engine.js";
 import { BUILTIN_BGM } from "../shared/builtinBgm.js";
 import { BUILTIN_QUESTIONS, availableQuestions, questionKey } from "../server/lib/questions.js";
@@ -123,6 +124,25 @@ test("brand upgrade changes existing and undo palette, adds official music once 
   upgradeBrandAssets(custom);
   assert.equal(custom.audio.bgm.id, "custom-upload");
   assert.equal(custom.audio.bgmEnabled, true);
+});
+test("stage audio upgrades nonzero volume once while retaining deliberate silence and later adjustments", () => {
+  const s = room();
+  assert.equal(s.audio.effectsVolume, 0.9);
+  delete s.stageAudioVersion;
+  s.audio.effectsVolume = 0.65;
+  s.audio.bgmVolume = 0.17;
+  assert(upgradeStageAudio(s));
+  assert.equal(s.audio.effectsVolume, 0.9);
+  assert.equal(s.audio.bgmVolume, 0.17);
+  command(s, host, "audioSettings", { effectsVolume: 0.3 });
+  assert(!upgradeStageAudio(s));
+  assert.equal(s.audio.effectsVolume, 0.3);
+  delete s.stageAudioVersion;
+  s.audio.effectsVolume = 0;
+  s.audio.effectsEnabled = false;
+  upgradeStageAudio(s);
+  assert.equal(s.audio.effectsVolume, 0);
+  assert.equal(s.audio.effectsEnabled, false);
 });
 test("online dice is backend-generated: 4 moves from 0 to tile04, duplicate rolls blocked", () => {
   const s = room();

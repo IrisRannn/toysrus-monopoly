@@ -8,6 +8,7 @@ import {
   type GameConnection,
 } from "../hooks/useGame";
 import type { TeamId, GameState } from "../types";
+import { EVENT_ROOM_CODE } from "../../shared/siteSettings.js";
 export function Brand({ small = false }: { small?: boolean }) {
   return (
     <div className={"brand " + (small ? "small" : "")}>
@@ -44,7 +45,7 @@ export function ErrorBar({ game }: { game: GameConnection }) {
   ) : null;
 }
 export function RoomForm({ role }: { role: "host" | "player" | "screen" }) {
-  const [room, setRoom] = useState(initialRoom),
+  const [room, setRoom] = useState(() => initialRoom() || EVENT_ROOM_CODE),
     [name, setName] = useState(""),
     [team, setTeam] = useState<TeamId>("east"),
     [error, setError] = useState(""),
@@ -92,7 +93,7 @@ export function RoomForm({ role }: { role: "host" | "player" | "screen" }) {
         </h1>
         <p className="muted">
           {role === "host"
-            ? "创建年会房间，连接全场的快乐。"
+            ? `年会固定房间 ${EVENT_ROOM_CODE}，再次进入会保留游戏进度。`
             : role === "player"
               ? "五支队伍，同一场童心冒险。"
               : "输入房间号，开启全场大屏。"}
@@ -155,7 +156,7 @@ export function RoomForm({ role }: { role: "host" | "player" | "screen" }) {
               : role === "player"
                 ? "加入游戏 →"
                 : role === "host"
-                  ? "进入已有房间 →"
+                  ? "进入主持人控制台 →"
                   : "打开游戏大屏 →"}
           </button>
           {role === "host" && (
@@ -165,7 +166,7 @@ export function RoomForm({ role }: { role: "host" | "player" | "screen" }) {
               disabled={busy}
               onClick={() => void enter(true)}
             >
-              ＋ 创建新房间
+              进入年会房间 261218
             </button>
           )}
         </form>

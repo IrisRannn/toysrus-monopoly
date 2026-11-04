@@ -4,7 +4,7 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { randomInt, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { Server } from "socket.io";
 import QRCode from "qrcode";
 import ExcelJS from "exceljs";
@@ -21,10 +21,12 @@ import {
   seedQuestionBank,
   upgradeTurnAutomation,
   upgradeBrandAssets,
+  upgradeStageAudio,
 } from "./lib/engine.js";
 import { importQuestions, COLUMNS, safeCsv } from "./lib/import.js";
 import { audioState } from "../shared/audioSettings.js";
 import { BUILTIN_BGM } from "../shared/builtinBgm.js";
+import { EVENT_ROOM_CODE } from "../shared/siteSettings.js";
 import { saveBgm, bgmPath, MAX_BGM_BYTES } from "./lib/audioAssets.js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export async function createApp(options = {}) {
@@ -37,11 +39,13 @@ export async function createApp(options = {}) {
     const bankChanged = seedQuestionBank(preview);
     const automationChanged = upgradeTurnAutomation(preview);
     const brandChanged = upgradeBrandAssets(preview);
-    if (bankChanged || automationChanged || brandChanged)
+    const audioChanged = upgradeStageAudio(preview);
+    if (bankChanged || automationChanged || brandChanged || audioChanged)
       await store.mutate(code, (s) => {
         seedQuestionBank(s);
         upgradeTurnAutomation(s);
         upgradeBrandAssets(s);
+        upgradeStageAudio(s);
       });
   }
   const app = express(),
@@ -302,34 +306,35 @@ export async function createApp(options = {}) {
       mode: production ? "production" : "development",
     }),
   );
+  const enterHostRoom = async (code) => {
+    const credential = token();
+    let created = false;
+    await store.mutate(code, (s) => {
+      if (!s) {
+        if (code !== EVENT_ROOM_CODE) throw new GameError("房间不存在", 404);
+        created = true;
+        return { state: newRoom(code, hash(credential)) };
+      }
+      s.hostHash = hash(credential);
+      event(s, "host_enter", "主持人进入房间，旧主持人会话失效");
+    });
+    scheduleBroadcast(code);
+    return { code, token: credential, created };
+  };
   app.post(
     "/api/rooms",
     wrap(async (req, res) => {
       limit("host-entry:" + req.ip, 30);
-      let code;
-      do {
-        code = String(randomInt(100000, 1000000));
-      } while (await store.read(code));
-      const credential = token();
-      await store.mutate(code, (s) => {
-        if (s) throw new GameError("房间号冲突，请重试");
-        return { state: newRoom(code, hash(credential)) };
-      });
-      res.status(201).json({ code, token: credential });
+      const { created, ...session } = await enterHostRoom(EVENT_ROOM_CODE);
+      res.status(created ? 201 : 200).json(session);
     }),
   );
   app.post(
     "/api/rooms/:code/host-session",
     wrap(async (req, res) => {
       limit("host-entry:" + req.ip, 30);
-      const credential = token();
-      await store.mutate(req.params.code, (s) => {
-        if (!s) throw new GameError("房间不存在", 404);
-        s.hostHash = hash(credential);
-        event(s, "host_enter", "主持人进入房间，旧主持人会话失效");
-      });
-      scheduleBroadcast(req.params.code);
-      res.json({ code: req.params.code, token: credential });
+      const { code, token: credential } = await enterHostRoom(req.params.code);
+      res.json({ code, token: credential });
     }),
   );
   app.post(
