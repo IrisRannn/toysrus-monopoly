@@ -12,6 +12,7 @@ import { tilePositions } from "../../shared/tilePositions.js";
 import { tileMessages } from "../../shared/tileMessages.js";
 import { MOVEMENT_MS_PER_TILE, MIN_MOVEMENT_MS, PRESENTATION_MS } from "../../shared/gameTiming.js";
 import { DEFAULT_AUDIO, audioState } from "../../shared/audioSettings.js";
+import { BUILTIN_BGM } from "../../shared/builtinBgm.js";
 import { ACTIVITY_DICE_WEIGHTS } from "../../shared/diceRules.js";
 import { rollActivityDie } from "./dice.js";
 import {
@@ -32,6 +33,7 @@ const requireThat = (condition, message) => {
 };
 const clone = (x) => structuredClone(x);
 const TURN_AUTOMATION_VERSION = 1;
+const BRAND_ASSETS_VERSION = "20261104-brand-v1";
 const gameFields = [
   "status",
   "phase",
@@ -109,6 +111,7 @@ export function newRoom(code, hostHash) {
     settings: { answerSeconds: 30, autoAdvance: true },
     turnAutomationVersion: TURN_AUTOMATION_VERSION,
     audio: clone(DEFAULT_AUDIO),
+    brandAssetsVersion: BRAND_ASSETS_VERSION,
     undo: null,
   };
 }
@@ -133,6 +136,19 @@ export function upgradeTurnAutomation(s, now = Date.now()) {
   s.turnAutomationVersion = TURN_AUTOMATION_VERSION;
   if (s.phase === "turn_complete") scheduleNextTurn(s, now);
   event(s, "settings", "已开启普通线上回合自动切队；答题和上海SSC回合仍由主持人确认");
+  return true;
+}
+export function upgradeBrandAssets(s) {
+  if (s.brandAssetsVersion === BRAND_ASSETS_VERSION) return false;
+  for (const id of TEAM_ORDER) {
+    s.teams[id].color = TEAM_INFO[id].color;
+    if (s.undo?.game?.teams?.[id]) s.undo.game.teams[id].color = TEAM_INFO[id].color;
+  }
+  const audio = audioState(s);
+  if (!audio.bgm) audio.bgm = clone(BUILTIN_BGM);
+  s.audio = audio;
+  s.brandAssetsVersion = BRAND_ASSETS_VERSION;
+  event(s, "brand_assets", "更新品牌色板并接入正式内置BGM");
   return true;
 }
 function checkpoint(s, label) {
@@ -604,6 +620,10 @@ export function command(
     s.order = [...p.order];
     s.currentTeam = p.order[0];
     record(s, "order", "主持人调整行动顺序");
+  } else if (type === "useBuiltinBgm") {
+    hostOnly();
+    s.audio = { ...audioState(s), bgm: clone(BUILTIN_BGM), bgmEnabled: false };
+    record(s, "bgm", "主持人恢复正式内置背景音乐");
   } else if (type === "audioSettings") {
     hostOnly();
     const audio = audioState(s);

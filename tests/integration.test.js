@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { io } from "socket.io-client";
 import ExcelJS from "exceljs";
 import { createApp } from "../server/index.js";
@@ -11,6 +12,7 @@ import { importQuestions, safeCsv, COLUMNS } from "../server/lib/import.js";
 import { newRoom, command, tick } from "../server/lib/engine.js";
 import { hash } from "../server/lib/auth.js";
 import { MAX_BGM_BYTES } from "../server/lib/audioAssets.js";
+import { BUILTIN_BGM } from "../shared/builtinBgm.js";
 async function fixture(file) {
   const store = await createStore({ databaseUrl: null, file });
   const app = await createApp({ store, assetDirectory: path.join(path.dirname(file), "assets") });
@@ -95,6 +97,43 @@ test("BGM upload is authenticated, bounded, streamed and retained across databas
     })).status, 200);
     assert.equal((await fetch(app.url + bgm.url)).status, 404);
     assert.equal((await app.store.read(code)).audio.bgmEnabled, false);
+  } finally {
+    await app.close();
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});
+test("official MP3 is available without uploads in a fresh database and can be restored after replacement", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "monopoly-official-bgm-"));
+  let app = await fixture(path.join(directory, "first.sqlite"));
+  try {
+    const room = (await api(app.url, "/api/rooms", {})).body;
+    const initial = (await api(app.url, `/api/rooms/${room.code}/state`, null, room.token)).body;
+    assert.equal(initial.audio.bgm.id, BUILTIN_BGM.id);
+    assert.equal(initial.audio.bgm.source, "builtin");
+    assert.equal(initial.audio.bgmEnabled, false);
+    const media = await fetch(app.url + initial.audio.bgm.url);
+    assert.equal(media.status, 200);
+    assert.match(media.headers.get("content-type"), /audio\/mpeg/);
+    const bytes = Buffer.from(await media.arrayBuffer());
+    assert.equal(bytes.length, 5256532);
+    assert.equal(createHash("sha256").update(bytes).digest("hex"), BUILTIN_BGM.id);
+    const range = await fetch(app.url + initial.audio.bgm.url, { headers: { Range: "bytes=0-31" } });
+    assert.equal(range.status, 206);
+    assert.deepEqual(Buffer.from(await range.arrayBuffer()), bytes.subarray(0, 32));
+    await fetch(app.url + `/api/rooms/${room.code}/bgm`, {
+      method: "DELETE", headers: { "x-game-role": "host", Authorization: "Bearer " + room.token },
+    });
+    await app.close();
+    app = await fixture(path.join(directory, "first.sqlite"));
+    assert.equal((await app.store.read(room.code)).audio.bgm, null);
+    const restored = await api(app.url, `/api/rooms/${room.code}/commands`, { type: "useBuiltinBgm" }, room.token);
+    assert.equal(restored.status, 200);
+    assert.equal((await app.store.read(room.code)).audio.bgm.id, BUILTIN_BGM.id);
+    await app.close();
+    app = await fixture(path.join(directory, "fresh.sqlite"));
+    const fresh = (await api(app.url, "/api/rooms", {})).body;
+    assert.equal((await app.store.read(fresh.code)).audio.bgm.id, BUILTIN_BGM.id);
+    assert.equal((await fetch(app.url + BUILTIN_BGM.url)).status, 200);
   } finally {
     await app.close();
     await fs.rm(directory, { recursive: true, force: true });

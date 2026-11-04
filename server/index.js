@@ -20,9 +20,11 @@ import {
   prizeCandidates,
   seedQuestionBank,
   upgradeTurnAutomation,
+  upgradeBrandAssets,
 } from "./lib/engine.js";
 import { importQuestions, COLUMNS, safeCsv } from "./lib/import.js";
 import { audioState } from "../shared/audioSettings.js";
+import { BUILTIN_BGM } from "../shared/builtinBgm.js";
 import { saveBgm, bgmPath, MAX_BGM_BYTES } from "./lib/audioAssets.js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export async function createApp(options = {}) {
@@ -34,10 +36,12 @@ export async function createApp(options = {}) {
     if (!preview) continue;
     const bankChanged = seedQuestionBank(preview);
     const automationChanged = upgradeTurnAutomation(preview);
-    if (bankChanged || automationChanged)
+    const brandChanged = upgradeBrandAssets(preview);
+    if (bankChanged || automationChanged || brandChanged)
       await store.mutate(code, (s) => {
         seedQuestionBank(s);
         upgradeTurnAutomation(s);
+        upgradeBrandAssets(s);
       });
   }
   const app = express(),
@@ -192,6 +196,11 @@ export async function createApp(options = {}) {
     return state;
   };
   const assetDir = path.resolve(options.assetDirectory || process.env.ASSET_DIR || path.join(root, "data", "assets"));
+  app.get("/api/builtin-bgm/:id", (req, res) => {
+    if (req.params.id !== BUILTIN_BGM.id) return res.status(404).json({ error: "内置音乐不存在" });
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.type(BUILTIN_BGM.mimeType).sendFile(path.join(root, "server", "assets", `anniversary-bgm-${BUILTIN_BGM.id.slice(0, 16)}.mp3`));
+  });
   const readBgm = express.raw({ type: () => true, limit: MAX_BGM_BYTES });
   app.post(
     "/api/rooms/:code/bgm",

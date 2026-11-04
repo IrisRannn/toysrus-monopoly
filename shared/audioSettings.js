@@ -1,8 +1,9 @@
+import { BUILTIN_BGM } from "./builtinBgm.js";
 export const DEFAULT_AUDIO = Object.freeze({
   effectsEnabled: true,
   effectsVolume: 0.65,
   bgmEnabled: false,
   bgmVolume: 0.25,
-  bgm: null,
+  bgm: BUILTIN_BGM,
 });
 export const audioState = (state) => ({ ...DEFAULT_AUDIO, ...state.audio });

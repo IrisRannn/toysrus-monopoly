@@ -70,6 +70,13 @@ with sync_playwright() as p:
     expect(screen.get_by_role('button',name='静音大屏',exact=True)).to_be_visible()
     assert all(m.locator('audio').count()==0 for m in players)
     assert host.locator('audio').count()==0
+    expect(host.locator('.bgm-file-name')).to_contain_text('正式内置BGM · audio [music].mp3')
+    host.get_by_role('button',name='播放背景音乐',exact=True).click()
+    screen.wait_for_function("!document.querySelector('audio').paused && document.querySelector('audio').currentTime>0.1")
+    assert screen.locator('audio').evaluate('(x)=>x.duration>168 && x.duration<172')
+    screen.locator('audio').evaluate('(x)=>{x.currentTime=x.duration-.15}')
+    screen.wait_for_function("!document.querySelector('audio').paused && document.querySelector('audio').currentTime<1")
+    host.get_by_role('button',name='暂停背景音乐',exact=True).click()
     # A generated test tone checks upload/playback; it is not the event's BGM.
     output=io.BytesIO()
     with wave.open(output,'wb') as wav:
@@ -93,8 +100,16 @@ with sync_playwright() as p:
     screen.wait_for_function("!document.querySelector('audio').paused")
     host.get_by_role('button',name='暂停背景音乐',exact=True).click()
     screen.wait_for_function("document.querySelector('audio').paused")
+    host.get_by_role('button',name='恢复正式内置BGM',exact=True).click()
+    expect(host.locator('.bgm-file-name')).to_contain_text('正式内置BGM · audio [music].mp3')
     print('PASS BGM upload, loop playback, host pause and local screen mute; employee phones stay silent',flush=True)
     expect(screen.locator('.game-token')).to_have_count(5)
+    expected_colors={'east':'rgb(15, 77, 188)','central':'rgb(105, 190, 40)','north':'rgb(255, 110, 0)','west':'rgb(59, 48, 146)','shanghai':'rgb(240, 20, 80)'}
+    for team,color in expected_colors.items():
+        body=screen.locator(f'.game-token[data-team={team}] .token-name')
+        expect(body).to_have_css('background-color',color)
+        expect(body).to_have_css('border-top-color','rgb(255, 255, 255)')
+        expect(body).to_have_css('border-top-width','4px')
     screen.wait_for_function("document.querySelector('.board-original')?.naturalWidth === 1920 && document.querySelector('.board-original')?.naturalHeight === 1080")
     assert not screen.locator('.asset-missing').count()
     screen.screenshot(path='/workspace/monopoly-screen-ready.png')

@@ -1,10 +1,11 @@
+import { BRAND_COLORS } from "./brandPalette.js";
 export const TEAM_ORDER = ["east", "central", "north", "west", "shanghai"];
 export const TEAM_INFO = {
-  east: { name: "东区", color: "#2F80ED" },
-  central: { name: "中南区", color: "#27AE60" },
-  north: { name: "北区", color: "#E0A100" },
-  west: { name: "西区", color: "#9B51E0" },
-  shanghai: { name: "上海SSC", color: "#00B8D9" },
+  east: { name: "东区", color: BRAND_COLORS.blue },
+  central: { name: "中南区", color: BRAND_COLORS.green },
+  north: { name: "北区", color: BRAND_COLORS.orange },
+  west: { name: "西区", color: BRAND_COLORS.purple },
+  shanghai: { name: "上海SSC", color: BRAND_COLORS.pink },
 };
 export const TILES = [
   [1, "童心发射站", "normal", 0, "🚀"],

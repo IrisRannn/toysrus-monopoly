@@ -113,7 +113,7 @@ export interface GameState {
     effectsVolume: number;
     bgmEnabled: boolean;
     bgmVolume: number;
-    bgm: null | { id: string; format: string; mimeType: string; size: number; fileName: string; url: string };
+    bgm: null | { id: string; format: string; mimeType: string; size: number; fileName: string; url: string; source?: "builtin"; durationSeconds?: number };
   };
   autoNextAt: number | null;
   rankings: Team[];

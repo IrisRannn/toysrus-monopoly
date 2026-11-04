@@ -10,7 +10,9 @@ import {
   seedQuestionBank,
   validateQuestion,
   upgradeTurnAutomation,
+  upgradeBrandAssets,
 } from "../server/lib/engine.js";
+import { BUILTIN_BGM } from "../shared/builtinBgm.js";
 import { BUILTIN_QUESTIONS, availableQuestions, questionKey } from "../server/lib/questions.js";
 import { TEAM_ORDER, TILES, tally, rankings } from "../shared/gameRules.js";
 const host = { role: "host" },
@@ -68,16 +70,22 @@ test("20 tiles, exact five teams/colors, no score fields", () => {
   const s = room();
   assert.equal(TILES.length, 20);
   assert.deepEqual(s.order, ["east", "central", "north", "west", "shanghai"]);
-  assert.equal(s.teams.east.color, "#2F80ED");
+  assert.deepEqual(Object.values(s.teams).map((t) => t.color), ["#0F4DBC", "#69BE28", "#FF6E00", "#3B3092", "#F01450"]);
   assert.equal(s.teams.shanghai.name, "上海SSC");
   assert.equal(Object.values(s.players).filter((p) => p.team).length, 5);
   assert(!/score|bonusSteps|points/.test(JSON.stringify(s)));
 });
 test("audio controls are host-only, validate volume and preserve setup when restarting a game", () => {
   const s = room();
-  assert.equal(s.audio.bgm, null);
+  assert.equal(s.audio.bgm.id, BUILTIN_BGM.id);
+  command(s, host, "audioSettings", { bgmEnabled: true });
+  assert.equal(s.audio.bgmEnabled, true);
+  s.audio.bgm = null;
+  s.audio.bgmEnabled = false;
   assert.throws(() => command(s, player("east"), "audioSettings", { effectsEnabled: false }), /主持人/);
   assert.throws(() => command(s, host, "audioSettings", { bgmEnabled: true }), /先上传/);
+  assert.throws(() => command(s, player("east"), "useBuiltinBgm"), /主持人/);
+  command(s, host, "useBuiltinBgm");
   for (const value of [-0.1, 1.01, NaN, Infinity, "0.5"])
     assert.throws(() => command(s, host, "audioSettings", { effectsVolume: value }), /音量/);
   command(s, host, "audioSettings", { effectsEnabled: false, effectsVolume: 0.2, bgmVolume: 0.1 });
@@ -85,7 +93,36 @@ test("audio controls are host-only, validate volume and preserve setup when rest
   assert.equal(s.audio.effectsEnabled, false);
   assert.equal(s.audio.effectsVolume, 0.2);
   assert.equal(s.audio.bgmVolume, 0.1);
-  assert.equal(publicState(s, { role: "screen" }).audio.bgm, null);
+  assert.equal(publicState(s, { role: "screen" }).audio.bgm.id, BUILTIN_BGM.id);
+});
+test("brand upgrade changes existing and undo palette, adds official music once and respects custom choices", () => {
+  const s = room();
+  delete s.brandAssetsVersion;
+  s.teams.east.color = "#2F80ED";
+  s.teams.east.position = 13;
+  s.round = 7;
+  s.audio.bgm = null;
+  s.audio.effectsVolume = 0.4;
+  command(s, host, "manualMove", { team: "east", position: 11, reason: "既有房间校正" }, NOW);
+  assert(upgradeBrandAssets(s));
+  assert.equal(s.round, 7);
+  assert.equal(s.teams.east.position, 11);
+  assert.equal(s.teams.east.color, "#0F4DBC");
+  assert.equal(s.audio.bgm.id, BUILTIN_BGM.id);
+  assert.equal(s.audio.effectsVolume, 0.4);
+  command(s, host, "undo", {}, NOW);
+  assert.equal(s.teams.east.position, 13);
+  assert.equal(s.teams.east.color, "#0F4DBC");
+  s.audio.bgm = null;
+  assert.equal(upgradeBrandAssets(s), false);
+  assert.equal(s.audio.bgm, null);
+  const custom = room();
+  delete custom.brandAssetsVersion;
+  custom.audio.bgm = { id: "custom-upload", url: "/custom-song" };
+  custom.audio.bgmEnabled = true;
+  upgradeBrandAssets(custom);
+  assert.equal(custom.audio.bgm.id, "custom-upload");
+  assert.equal(custom.audio.bgmEnabled, true);
 });
 test("online dice is backend-generated: 4 moves from 0 to tile04, duplicate rolls blocked", () => {
   const s = room();

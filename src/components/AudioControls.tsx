@@ -67,7 +67,9 @@ export default function AudioControls({ game, state }: { game: GameConnection; s
         </div>
         <div>
           <h3>背景音乐 BGM</h3>
-          <p className="bgm-file-name">{state.audio.bgm?.fileName || "尚未添加背景音乐，收到音乐后可在此上传。"}</p>
+          <p className="bgm-file-name">
+            {state.audio.bgm ? `${state.audio.bgm.source === "builtin" ? "正式内置BGM · " : ""}${state.audio.bgm.fileName}` : "当前未选择音乐，可恢复内置BGM或上传其他音乐。"}
+          </p>
           <label className="upload-label">{uploading ? "正在上传音乐…" : "上传／替换背景音乐"}
             <input type="file" accept=".mp3,.wav,.ogg,.m4a,audio/*" disabled={disabled}
               onChange={(e) => { void upload(e.target.files?.[0]); e.currentTarget.value = ""; }} />
@@ -78,6 +80,10 @@ export default function AudioControls({ game, state }: { game: GameConnection; s
               {state.audio.bgmEnabled ? "暂停背景音乐" : "播放背景音乐"}
             </button>
             <button type="button" className="text-button" disabled={disabled || !state.audio.bgm} onClick={() => void remove()}>移除音乐</button>
+            {state.audio.bgm?.source !== "builtin" && (
+              <button type="button" className="secondary" disabled={disabled}
+                onClick={() => void game.cmd("useBuiltinBgm")}>恢复正式内置BGM</button>
+            )}
           </div>
           <label>音乐音量 · {Math.round(bgmVolume * 100)}%
             <input type="range" min="0" max="100" value={Math.round(bgmVolume * 100)} disabled={disabled}
