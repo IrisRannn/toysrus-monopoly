@@ -20,6 +20,7 @@ import Board from "../components/Board";
 import Dice from "../components/Dice";
 import AudioControls from "../components/AudioControls";
 import type { GameState, Question, Position, TeamId } from "../types";
+import { PREVIEW_ROOM_CODE, playerEntryPath } from "../../shared/siteSettings.js";
 type Tab = "control" | "players" | "questions" | "events" | "prizes" | "board";
 const tabs: [Tab, string, string][] = [
   ["control", "◈", "现场控制"],
@@ -101,7 +102,7 @@ export default function Host() {
           <Brand small />
         </a>
         <div className="sidebar-room">
-          <span>年会游戏房间</span>
+          <span>{s.code === PREVIEW_ROOM_CODE ? "横屏体验房间" : "年会游戏房间"}</span>
           <b>{s.code}</b>
           <Network connected={game.connected} />
         </div>
@@ -121,7 +122,7 @@ export default function Host() {
           <a target="_blank" rel="noreferrer" href={`/screen?room=${s.code}`}>
             ↗ 打开游戏大屏
           </a>
-          <a target="_blank" rel="noreferrer" href={`/player?room=${s.code}`}>
+          <a target="_blank" rel="noreferrer" href={`${playerEntryPath(s.code)}?room=${s.code}`}>
             ↗ 打开玩家页面
           </a>
           <button onClick={game.logout}>退出主持人会话</button>
@@ -143,6 +144,7 @@ export default function Host() {
             <Status state={s} />
           </div>
         </header>
+        {s.code === PREVIEW_ROOM_CODE && <div className="preview-notice"><span>横屏体验房间261219 · 与正式房间261218的队员和进度独立</span><a href="/player-preview" target="_blank" rel="noreferrer">打开横屏体验玩家页 ↗</a></div>}
         <ErrorBar game={game} />
         {tab === "control" && (
           <>
@@ -254,7 +256,7 @@ export default function Host() {
                 </label>
                 <small>现场请填写局域网 IP 或已部署的 HTTPS 域名。</small>
                 <a
-                  href={`${joinBase}/player?room=${s.code}`}
+                  href={`${joinBase}${playerEntryPath(s.code)}?room=${s.code}`}
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -262,6 +264,7 @@ export default function Host() {
                 </a>
               </section>
             </div>
+            {s.settings.hostOnlyRepresentatives && <RepresentativeRoster game={game} state={s} />}
             {team.id === "shanghai" &&
               isRunning &&
               s.phase === "awaiting_dice" && (
@@ -286,7 +289,7 @@ export default function Host() {
               )}
             {isRunning &&
               s.phase === "awaiting_dice" &&
-              team.id !== "shanghai" && (
+              team.id !== "shanghai" && !s.settings.hostOnlyRepresentatives && (
                 <section className="panel">
                   <div className="section-heading">
                     <h2>指定本回合投骰代表</h2>
@@ -382,6 +385,12 @@ export default function Host() {
                     }
                   />
                 </label>
+                <label className="check-label">
+                  <input type="checkbox" checked={!!s.settings.hostOnlyRepresentatives} disabled={disabled}
+                    onChange={(e) => void game.cmd("settings", { hostOnlyRepresentatives: e.target.checked })} />
+                  投骰代表仅由主持人指定
+                </label>
+                <p className="muted">开启后可预先选好各队固定代表，员工无法自行申请；上海SSC仍使用实体骰子。</p>
                 <label className="check-label">
                   <input
                     type="checkbox"
@@ -626,6 +635,28 @@ export default function Host() {
       </main>
     </div>
   );
+}
+function RepresentativeRoster({ game, state: s }: { game: GameConnection; state: GameState }) {
+  return <section className="panel">
+    <div className="section-heading"><h2>固定投骰代表</h2><span className="muted">可在开场前选好，后续回合自动沿用</span></div>
+    <div className="representative-roster">
+      {s.order.filter((id) => id !== "shanghai").map((id) => {
+        const locked = id === s.currentTeam && s.status !== "waiting" && !["awaiting_dice", "turn_complete"].includes(s.phase);
+        const members = (s.players || []).filter((p) => p.team === id && !p.removed);
+        return <label key={id}>
+          <span style={{ color: s.teams[id].color }}>{s.teams[id].name}</span>
+          <select aria-label={`${s.teams[id].name}固定投骰代表`} value={s.representativeRoster?.[id] || ""}
+            disabled={game.busy || !game.connected || locked}
+            onChange={(e) => void game.cmd("setTeamRepresentative", { team: id, playerId: e.target.value || null })}>
+            <option value="">请选择已加入的员工</option>
+            {members.map((p) => <option key={p.id} value={p.id}>{p.nickname}{p.online ? " · 在线" : " · 离线"}</option>)}
+          </select>
+          <small>{locked ? "本队回合结束后可更换" : members.length ? "核对员工后指定；可随时清空" : "请先让本队代表加入体验房间"}</small>
+        </label>;
+      })}
+    </div>
+    <p className="muted">员工无法自行抢代表。上海SSC继续现场实体投骰，由主持人录入点数。</p>
+  </section>;
 }
 function QuizControl({
   game,

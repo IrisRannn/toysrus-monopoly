@@ -13,6 +13,7 @@ import { tileMessages } from "../../shared/tileMessages.js";
 import { MOVEMENT_MS_PER_TILE, MIN_MOVEMENT_MS, PRESENTATION_MS } from "../../shared/gameTiming.js";
 import { DEFAULT_AUDIO, audioState } from "../../shared/audioSettings.js";
 import { BUILTIN_BGM } from "../../shared/builtinBgm.js";
+import { PREVIEW_ROOM_CODE } from "../../shared/siteSettings.js";
 import { ACTIVITY_DICE_WEIGHTS } from "../../shared/diceRules.js";
 import { rollActivityDie } from "./dice.js";
 import {
@@ -108,7 +109,8 @@ export function newRoom(code, hostHash) {
     questionBankVersion: QUESTION_BANK_VERSION,
     events: [],
     positions: clone(tilePositions),
-    settings: { answerSeconds: 30, autoAdvance: true },
+    settings: { answerSeconds: 30, autoAdvance: true, hostOnlyRepresentatives: code === PREVIEW_ROOM_CODE },
+    representativeRoster: {},
     turnAutomationVersion: TURN_AUTOMATION_VERSION,
     audio: clone(DEFAULT_AUDIO),
     brandAssetsVersion: BRAND_ASSETS_VERSION,
@@ -173,6 +175,11 @@ function finish(s, team, now) {
     Object.values(s.teams).filter((t) => t.finishOrder).length + 1;
   team.finishedAt = now;
   event(s, "finish", `${team.name}冲线，获得第${team.finishOrder}名`);
+}
+function rosterRepresentative(s, team) {
+  const id = s.representativeRoster?.[team];
+  const employee = s.players[id];
+  return employee && !employee.removed && employee.team === team ? id : null;
 }
 function move(s, to, kind, now) {
   const team = s.teams[s.currentTeam],
@@ -260,7 +267,7 @@ function next(s, _now, actor = "system") {
       if (index + n >= 5) s.round++;
       s.currentTeam = team.id;
       s.turnId++;
-      team.representativeId = null;
+      team.representativeId = rosterRepresentative(s, team.id);
       s.phase = "awaiting_dice";
       s.dice = null;
       s.quiz = null;
@@ -432,6 +439,8 @@ export function command(
     if (s.teams[s.currentTeam].finishOrder)
       s.currentTeam = s.order.find((id) => !s.teams[id].finishOrder);
     s.status = "running";
+    for (const id of TEAM_ORDER)
+      if (rosterRepresentative(s, id)) s.teams[id].representativeId = rosterRepresentative(s, id);
     s.undo = null;
     record(s, "start", "游戏开始 · 20格无限轮次");
   } else if (type === "pause") {
@@ -458,6 +467,7 @@ export function command(
     hostOnly();
     requireThat(p.confirm === s.code, "请输入房间号确认重置");
     Object.assign(s, freshGame());
+    for (const id of TEAM_ORDER) s.teams[id].representativeId = rosterRepresentative(s, id);
     s.undo = null;
     record(s, "reset", "主持人重置游戏，保留员工与题库");
   } else if (type === "end") {
@@ -468,10 +478,24 @@ export function command(
     s.presentation = null;
     s.undo = null;
     record(s, "end", "主持人提前结束游戏，未冲线队伍按位置排名");
+  } else if (type === "setTeamRepresentative") {
+    hostOnly();
+    requireThat(TEAM_ORDER.includes(p.team) && p.team !== "shanghai", "请选择线上投骰队伍");
+    requireThat(p.team !== s.currentTeam || s.status === "waiting" ||
+      ["awaiting_dice", "turn_complete"].includes(s.phase), "请在本队投骰前或回合结束后更换代表");
+    const id = p.playerId || null;
+    const target = id ? s.players[id] : null;
+    requireThat(!id || (target && !target.removed && target.team === p.team), "请选择该队伍的有效员工");
+    s.representativeRoster ||= {};
+    s.representativeRoster[p.team] = id;
+    s.teams[p.team].representativeId = id;
+    s.undo = null;
+    record(s, "representative", `${s.teams[p.team].name}固定投骰代表：${target?.nickname || "未指定"}`);
   } else if (
     type === "assignRepresentative" ||
     type === "claimRepresentative"
   ) {
+    if (!host) requireThat(!s.settings.hostOnlyRepresentatives, "投骰代表由主持人指定，员工不能自行申请");
     running();
     requireThat(s.phase === "awaiting_dice", "当前不能更换代表");
     requireThat(s.currentTeam !== "shanghai", "上海SSC由主持人录入实体骰子");
@@ -666,6 +690,10 @@ export function command(
       s.settings.autoAdvance = !!p.autoAdvance;
       if (s.phase === "turn_complete") scheduleNextTurn(s, now);
     }
+    if (p.hostOnlyRepresentatives !== undefined) {
+      requireThat(typeof p.hostOnlyRepresentatives === "boolean", "代表设置应为开启或关闭");
+      s.settings.hostOnlyRepresentatives = p.hostOnlyRepresentatives;
+    }
     record(s, "settings", "主持人更新游戏设置");
   } else if (type === "manualMove") {
     hostOnly();
@@ -730,6 +758,8 @@ export function command(
     }
     for (const t of Object.values(s.teams))
       if (t.representativeId === target.id) t.representativeId = null;
+    for (const id of TEAM_ORDER)
+      if (s.representativeRoster?.[id] === target.id) delete s.representativeRoster[id];
     s.undo = null;
     s.prizeConfirmation = null;
     record(
@@ -943,6 +973,7 @@ export function publicState(s, actor, online = new Set(), shared = null) {
     lastTile: s.lastTile,
     positions: s.positions,
     settings: s.settings,
+    ...(host ? { representativeRoster: s.representativeRoster || {} } : {}),
     audio: audioState(s),
     autoNextAt:
       s.status === "running" && s.phase === "turn_complete" && canAutoAdvance(s)

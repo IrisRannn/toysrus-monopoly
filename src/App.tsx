@@ -1,10 +1,13 @@
 import Host from "./pages/Host";
 import Player from "./pages/Player";
+import PlayerPreview from "./pages/PlayerPreview";
 import Screen from "./pages/Screen";
 import { Brand } from "./components/Common";
+import "./preview.css";
 export default function App() {
   const route = location.pathname;
   if (route.startsWith("/host")) return <Host />;
+  if (route === "/player-preview") return <PlayerPreview />;
   if (route.startsWith("/player") || route === "/m") return <Player />;
   if (route.startsWith("/screen")) return <Screen />;
   return (

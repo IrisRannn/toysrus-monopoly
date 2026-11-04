@@ -5,10 +5,12 @@ import {
   request,
   saveSession,
   useNow,
+  isPreviewRoute,
+  rememberRoom,
   type GameConnection,
 } from "../hooks/useGame";
 import type { TeamId, GameState } from "../types";
-import { EVENT_ROOM_CODE } from "../../shared/siteSettings.js";
+import { EVENT_ROOM_CODE, PREVIEW_ROOM_CODE } from "../../shared/siteSettings.js";
 export function Brand({ small = false }: { small?: boolean }) {
   return (
     <div className={"brand " + (small ? "small" : "")}>
@@ -45,6 +47,7 @@ export function ErrorBar({ game }: { game: GameConnection }) {
   ) : null;
 }
 export function RoomForm({ role }: { role: "host" | "player" | "screen" }) {
+  const preview = isPreviewRoute();
   const [room, setRoom] = useState(() => initialRoom() || EVENT_ROOM_CODE),
     [name, setName] = useState(""),
     [team, setTeam] = useState<TeamId>("east"),
@@ -56,7 +59,7 @@ export function RoomForm({ role }: { role: "host" | "player" | "screen" }) {
     try {
       if (role === "host") {
         const result = await request(
-          create ? "/api/rooms" : `/api/rooms/${room}/host-session`,
+          create && !preview ? "/api/rooms" : `/api/rooms/${room}/host-session`,
           "POST",
           {},
         );
@@ -69,7 +72,7 @@ export function RoomForm({ role }: { role: "host" | "player" | "screen" }) {
         saveSession(room, "player", result.token);
       } else {
         await request(`/api/rooms/${room}/state`);
-        localStorage.setItem("monopoly:lastRoom", room);
+        rememberRoom(room);
         location.href = `/screen?room=${room}`;
       }
     } catch (e) {
@@ -83,16 +86,16 @@ export function RoomForm({ role }: { role: "host" | "player" | "screen" }) {
       <div className="entry-glow" />
       <section className="entry-card">
         <Brand />
-        <div className="eyebrow">一起玩 · 一路向前</div>
+        <div className="eyebrow">{preview ? "手机横屏 · 体验窗口" : "一起玩 · 一路向前"}</div>
         <h1>
-          {role === "host"
+          {preview ? (role === "host" ? "体验主持人控制台" : "横屏棋盘体验") : role === "host"
             ? "主持人控制中心"
             : role === "player"
               ? "加入你的队伍"
               : "准备好，一起出发"}
         </h1>
         <p className="muted">
-          {role === "host"
+          {preview ? `独立体验房间 ${PREVIEW_ROOM_CODE}，横屏观看棋盘，由主持人指定投骰代表。` : role === "host"
             ? `年会固定房间 ${EVENT_ROOM_CODE}，再次进入会保留游戏进度。`
             : role === "player"
               ? "五支队伍，同一场童心冒险。"
@@ -111,6 +114,7 @@ export function RoomForm({ role }: { role: "host" | "player" | "screen" }) {
               maxLength={6}
               placeholder="6位房间号"
               value={room}
+              readOnly={preview}
               onChange={(e) => setRoom(e.target.value.replace(/\D/g, ""))}
             />
           </label>
@@ -166,10 +170,13 @@ export function RoomForm({ role }: { role: "host" | "player" | "screen" }) {
               disabled={busy}
               onClick={() => void enter(true)}
             >
-              进入年会房间 261218
+              {preview ? "进入体验房间 261219" : "进入年会房间 261218"}
             </button>
           )}
         </form>
+        {preview && role === "player" && (
+          <a className="preview-host-link" href="/host-preview" target="_blank" rel="noreferrer">打开体验主持人控制台 ↗</a>
+        )}
         <a className="back-link" href="/">
           ← 返回入口
         </a>

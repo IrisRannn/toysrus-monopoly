@@ -26,7 +26,7 @@ import {
 import { importQuestions, COLUMNS, safeCsv } from "./lib/import.js";
 import { audioState } from "../shared/audioSettings.js";
 import { BUILTIN_BGM } from "../shared/builtinBgm.js";
-import { EVENT_ROOM_CODE } from "../shared/siteSettings.js";
+import { EVENT_ROOM_CODE, PREVIEW_ROOM_CODE, playerEntryPath } from "../shared/siteSettings.js";
 import { saveBgm, bgmPath, MAX_BGM_BYTES } from "./lib/audioAssets.js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export async function createApp(options = {}) {
@@ -311,7 +311,7 @@ export async function createApp(options = {}) {
     let created = false;
     await store.mutate(code, (s) => {
       if (!s) {
-        if (code !== EVENT_ROOM_CODE) throw new GameError("房间不存在", 404);
+        if (![EVENT_ROOM_CODE, PREVIEW_ROOM_CODE].includes(code)) throw new GameError("房间不存在", 404);
         created = true;
         return { state: newRoom(code, hash(credential)) };
       }
@@ -344,6 +344,7 @@ export async function createApp(options = {}) {
       const credential = token(),
         id = randomUUID();
       await store.mutate(req.params.code, (s) => {
+        if (!s && req.params.code === PREVIEW_ROOM_CODE) s = newRoom(PREVIEW_ROOM_CODE, hash(token()));
         if (!s) throw new GameError("房间不存在", 404);
         if (Object.keys(s.players).length >= 5000)
           throw new GameError("房间人数已达上限");
@@ -356,6 +357,7 @@ export async function createApp(options = {}) {
           joinedAt: Date.now(),
         };
         command(s, { role: "player", playerId: id }, "join", req.body);
+        return { state: s };
       });
       scheduleBroadcast(req.params.code);
       res.status(201).json({ token: credential, playerId: id });
@@ -406,7 +408,7 @@ export async function createApp(options = {}) {
       const base = process.env.PUBLIC_BASE_URL || req.query.base;
       let url;
       try {
-        url = new URL("/player", String(base));
+        url = new URL(playerEntryPath(req.params.code), String(base));
         if (!["http:", "https:"].includes(url.protocol)) throw new Error();
       } catch {
         throw new GameError("请提供可供手机访问的完整站点地址");

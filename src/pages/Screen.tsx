@@ -9,7 +9,8 @@ import {
 } from "../components/Common";
 import { phaseNames, TILES } from "../config";
 import Board from "../components/Board";
-import Dice from "../components/Dice";
+import StageDice, { stageDiceVisible } from "../components/StageDice";
+import { playerEntryPath } from "../../shared/siteSettings.js";
 import EventSpotlight from "../components/EventSpotlight";
 import ScreenAudio from "../components/ScreenAudio";
 export default function Screen() {
@@ -37,8 +38,7 @@ export default function Screen() {
         (s.phase === "turn_complete" && !!quiz.result)),
     latest = s.events[s.events.length - 1],
     tile = TILES.find((t) => t.id === s.lastTile),
-    showDice = s.dice && !s.presentation && !showQuiz && s.status !== "finished" &&
-      (s.phase === "rolling" || (s.phase === "moving" && s.movement?.kind === "dice" && now < s.movement.startedAt + 1100));
+    showDice = stageDiceVisible(s, now);
   return (
     <main className="screen-app">
       <div className="screen-stage">
@@ -79,24 +79,14 @@ export default function Screen() {
             </div>
           )}
         </div>
-        {showDice && s.dice && (
-          <div className="screen-dice" data-rolling={s.phase === "rolling"}>
-            <div className="screen-dice-content">
-              <div className="screen-dice-label">{team.name} · {s.phase === "rolling" ? "正在投骰" : "投骰结果"}</div>
-              <Dice value={s.dice.value} rolling={s.phase === "rolling" && s.status === "running"} />
-              <strong aria-live="polite">
-                {s.phase === "rolling" ? "好运转起来！" : <>{s.dice.value}<small>点</small></>}
-              </strong>
-            </div>
-          </div>
-        )}
+        {showDice && <StageDice state={s} />}
         <aside className="screen-ranking">
           <div className="eyebrow">实时进度 · 先冲线者领先</div>
           <Ranking state={s} />
         </aside>
         <div className="screen-footer">
           <span>
-            手机加入 <b>{location.host}/player</b> · 输入房间号 <b>{s.code}</b>
+            手机加入 <b>{location.host}{playerEntryPath(s.code)}</b> · 输入房间号 <b>{s.code}</b>
           </span>
           <span>{s.onlineCount} 人在线</span>
         </div>

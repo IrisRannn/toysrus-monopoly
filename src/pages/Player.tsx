@@ -1,24 +1,18 @@
-import { useEffect, useState } from "react";
-import { useGame, useNow } from "../hooks/useGame";
+import { useGame } from "../hooks/useGame";
 import {
   Brand,
   Network,
   ErrorBar,
   RoomForm,
-  Countdown,
   Status,
 } from "../components/Common";
 import { phaseNames, tileName } from "../config";
 import Dice from "../components/Dice";
+import PlayerQuiz from "../components/PlayerQuiz";
+import { PREVIEW_ROOM_CODE } from "../../shared/siteSettings.js";
 export default function Player() {
   const game = useGame("player"),
-    { state: s } = game,
-    [choice, setChoice] = useState("");
-  const now = useNow(game.offset);
-  useEffect(
-    () => setChoice(s?.quiz?.myAnswer || ""),
-    [s?.quiz?.id, s?.quiz?.myAnswer],
-  );
+    { state: s } = game;
   if (!game.room || !game.credential) return <RoomForm role="player" />;
   if (!s)
     return (
@@ -34,13 +28,6 @@ export default function Player() {
   const me = s.me!,
     team = s.teams[me.team],
     myTurn = s.currentTeam === me.team,
-    quiz = s.quiz,
-    canAnswer =
-      myTurn &&
-      s.phase === "answering" &&
-      s.status === "running" &&
-      !!quiz &&
-      now < quiz.endsAt,
     representative = team.representativeId === me.id,
     canRoll =
       myTurn &&
@@ -112,7 +99,7 @@ export default function Player() {
                 </div>
               ) : (
                 <>
-                  {!team.representativeId ? (
+                  {!team.representativeId && !s.settings.hostOnlyRepresentatives ? (
                     <button
                       className="primary wide"
                       disabled={game.busy || !game.connected}
@@ -124,7 +111,7 @@ export default function Player() {
                     </button>
                   ) : (
                     <p>
-                      本回合代表：<b>{team.representativeName}</b>
+                      本回合代表：<b>{team.representativeName || "等待主持人指定"}</b>
                       {representative ? "（你）" : ""}
                     </p>
                   )}
@@ -163,77 +150,7 @@ export default function Player() {
           </details>
         )}
       </section>
-      {quiz && myTurn && (
-        <section className="mobile-card quiz-card">
-          <div className="section-heading">
-            <span className="eyebrow">
-              全队一起答 · {quiz.submitted} / {quiz.eligible} 人
-            </span>
-            <Countdown state={s} offset={game.offset} />
-          </div>
-          <h2>{quiz.question.text}</h2>
-          <div className="answer-options">
-            {Object.entries(quiz.question.options).map(([key, text]) => (
-              <button
-                key={key}
-                disabled={!canAnswer || game.pendingCommand === "answer"}
-                className={choice === key ? "selected" : ""}
-                onClick={() => setChoice(key)}
-              >
-                <b>{key}</b>
-                <span>{text}</span>
-                {choice === key && <span>✓</span>}
-              </button>
-            ))}
-          </div>
-          {canAnswer ? (
-            <>
-              <button
-                className="primary wide"
-                disabled={!choice || game.busy || !game.connected}
-                onClick={() => void game.cmd("answer", { option: choice })}
-              >
-                {game.pendingCommand === "answer"
-                  ? "正在提交…"
-                  : quiz.myAnswer
-                    ? "更新我的答案"
-                    : "提交答案"}
-              </button>
-              <p className="muted">
-                {quiz.myAnswer
-                  ? `已提交 ${quiz.myAnswer}，截止前可修改。`
-                  : "每人仅保留一份有效答案，截止后锁定。"}
-              </p>
-            </>
-          ) : (
-            <p className="muted">
-              {s.phase === "quiz_closed"
-                ? "答案已锁定，等待主持人公布。"
-                : s.status === "paused"
-                  ? "游戏暂停，暂不可提交。"
-                  : ""}
-            </p>
-          )}
-          {quiz.result && (
-            <div
-              className={
-                "quiz-result " + (quiz.result.correct ? "success" : "")
-              }
-            >
-              <b>
-                {quiz.result.correct
-                  ? "答对了，向前出发！"
-                  : "未答对，下一次再接再厉。"}
-              </b>
-              <p>
-                正确答案 {quiz.result.correctAnswer} · 本队选择{" "}
-                {quiz.result.majority || "无唯一最多选项"}
-              </p>
-              <p>{quiz.question.explanation}</p>
-            </div>
-          )}
-        </section>
-      )}
+      <PlayerQuiz game={game} state={s} />
       <section className="mobile-card">
         <div className="eyebrow">刚刚发生</div>
         {s.events
@@ -245,6 +162,7 @@ export default function Player() {
       </section>
       <footer className="mobile-footer">
         <span>房间 {s.code}</span>
+        {s.code === PREVIEW_ROOM_CODE && <a href="/player-preview">返回横屏体验</a>}
         <button className="text-button" onClick={game.logout}>
           退出当前会话
         </button>

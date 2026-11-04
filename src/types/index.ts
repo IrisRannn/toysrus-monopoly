@@ -107,7 +107,8 @@ export interface GameState {
   };
   lastTile: number | null;
   positions: Position[];
-  settings: { answerSeconds: number; autoAdvance: boolean };
+  settings: { answerSeconds: number; autoAdvance: boolean; hostOnlyRepresentatives?: boolean };
+  representativeRoster?: Partial<Record<TeamId, string | null>>;
   audio: {
     effectsEnabled: boolean;
     effectsVolume: number;

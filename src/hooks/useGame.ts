@@ -1,19 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import type { GameState } from "../types";
+import { PREVIEW_ROOM_CODE } from "../../shared/siteSettings.js";
 export type Role = "host" | "player" | "screen";
 export const tokenKey = (room: string, role: Role) =>
   `monopoly:${room}:${role}`;
 export const initialRoom = () => {
+  if (isPreviewRoute()) return PREVIEW_ROOM_CODE;
   const params = new URLSearchParams(location.search);
   return params.has("room")
     ? params.get("room") || ""
     : localStorage.getItem("monopoly:lastRoom") || "";
 };
+export const isPreviewRoute = () => ["/player-preview", "/host-preview"].includes(location.pathname);
+const rolePath = (role: Role) => isPreviewRoute() && role !== "screen" ? `/${role}-preview` : `/${role}`;
+export function rememberRoom(room: string) {
+  localStorage.setItem(room === PREVIEW_ROOM_CODE ? "monopoly:lastPreviewRoom" : "monopoly:lastRoom", room);
+}
 export function saveSession(room: string, role: Role, token: string) {
   localStorage.setItem(tokenKey(room, role), token);
-  localStorage.setItem("monopoly:lastRoom", room);
-  location.href = `/${role}?room=${encodeURIComponent(room)}`;
+  rememberRoom(room);
+  location.href = `${rolePath(role)}?room=${encodeURIComponent(room)}`;
 }
 export async function request(
   path: string,
@@ -110,7 +117,7 @@ export function useGame(role: Role) {
   };
   const logout = () => {
     localStorage.removeItem(tokenKey(room, role));
-    location.href = `/${role}?room=${room}`;
+    location.href = `${rolePath(role)}?room=${room}`;
   };
   return {
     room,
