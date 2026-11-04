@@ -1,7 +1,7 @@
 """Real-browser acceptance checks. Needs running dev app and Python Playwright.
 Creates its own room, approved questions are never fabricated in the live room.
 """
-import json, re, os
+import json, re, os, io, math, struct, wave
 from playwright.sync_api import sync_playwright, expect
 BASE=os.environ.get('E2E_BASE_URL','http://127.0.0.1:5180')
 DELAY_ENDPOINT=os.environ.get('E2E_DELAY_ENDPOINT')
@@ -50,7 +50,50 @@ with sync_playwright() as p:
         expect(mobile.locator('.player-hero h1')).to_contain_text(name)
         players.append(mobile)
     expect(host.locator('.team-overview').get_by_text('1 人加入 · 1 人在线')).to_have_count(5)
-    screen=page();screen.set_viewport_size({'width':1920,'height':1080});screen.goto(BASE+f'/screen?room={code}')
+    screen=page();screen.set_viewport_size({'width':1920,'height':1080})
+    screen.add_init_script('''
+      window.__soundNotes=[];
+      const OriginalAudioContext=window.AudioContext;
+      window.AudioContext=class extends OriginalAudioContext {
+        createOscillator(){
+          const node=super.createOscillator(); let frequency=0;
+          const set=node.frequency.setValueAtTime.bind(node.frequency);
+          node.frequency.setValueAtTime=(value,time)=>{frequency=value;return set(value,time)};
+          const start=node.start.bind(node);
+          node.start=(time)=>{window.__soundNotes.push({frequency,type:node.type,at:performance.now()});return start(time)};
+          return node;
+        }
+      };
+    ''')
+    screen.goto(BASE+f'/screen?room={code}')
+    screen.get_by_role('button',name='开启大屏声音',exact=True).click()
+    expect(screen.get_by_role('button',name='静音大屏',exact=True)).to_be_visible()
+    assert all(m.locator('audio').count()==0 for m in players)
+    assert host.locator('audio').count()==0
+    # A generated test tone checks upload/playback; it is not the event's BGM.
+    output=io.BytesIO()
+    with wave.open(output,'wb') as wav:
+        wav.setnchannels(1);wav.setsampwidth(2);wav.setframerate(8000)
+        wav.writeframes(b''.join(struct.pack('<h',int(1500*math.sin(2*math.pi*330*i/8000))) for i in range(8000)))
+    host.locator('.audio-controls input[type=file]').set_input_files({'name':'浏览器测试音.wav','mimeType':'audio/wav','buffer':output.getvalue()})
+    expect(host.locator('.bgm-file-name')).to_have_text('浏览器测试音.wav')
+    host.get_by_role('button',name='播放背景音乐',exact=True).click()
+    screen.wait_for_function("document.querySelector('audio')?.paused === false && document.querySelector('audio').currentTime>0.1")
+    assert screen.locator('audio').evaluate('(x)=>x.loop')
+    screen.evaluate('window.__bgmStarted=performance.now()')
+    screen.wait_for_function("performance.now()-window.__bgmStarted>1300 && !document.querySelector('audio').paused")
+    assert abs(screen.locator('audio').evaluate('(x)=>x.volume')-.25)<.01
+    host.get_by_role('slider',name=re.compile('音乐音量')).press('End')
+    screen.wait_for_function("document.querySelector('audio').volume === 1")
+    api('audioSettings',{'bgmVolume':.25})
+    screen.wait_for_function("document.querySelector('audio').volume === .25")
+    screen.get_by_role('button',name='静音大屏',exact=True).click()
+    screen.wait_for_function("document.querySelector('audio').paused")
+    screen.get_by_role('button',name='恢复大屏声音',exact=True).click()
+    screen.wait_for_function("!document.querySelector('audio').paused")
+    host.get_by_role('button',name='暂停背景音乐',exact=True).click()
+    screen.wait_for_function("document.querySelector('audio').paused")
+    print('PASS BGM upload, loop playback, host pause and local screen mute; employee phones stay silent',flush=True)
     expect(screen.locator('.game-token')).to_have_count(5)
     screen.wait_for_function("document.querySelector('.board-original')?.naturalWidth === 1920 && document.querySelector('.board-original')?.naturalHeight === 1080")
     assert not screen.locator('.asset-missing').count()
@@ -66,7 +109,7 @@ with sync_playwright() as p:
     expect(screen.locator('.game-token[data-position="1"]')).to_have_count(5)
     same_tile=screen.locator('.game-token').evaluate_all('(nodes)=>nodes.map(n=>({left:n.getBoundingClientRect().left,right:n.getBoundingClientRect().right,top:n.getBoundingClientRect().top,bottom:n.getBoundingClientRect().bottom}))')
     assert no_overlap(same_tile),same_tile
-    assert max(r['right'] for r in same_tile)-min(r['left'] for r in same_tile)<192, 'same-tile group must stay compact'
+    assert max(r['right'] for r in same_tile)-min(r['left'] for r in same_tile)<400, 'enlarged same-tile group must stay within its cluster'
     screen.screenshot(path='/workspace/monopoly-same-tile.png')
     def normalized():
         return screen.locator('.game-token').evaluate_all('(nodes)=>{const r=document.querySelector(".board-canvas").getBoundingClientRect();return nodes.map(n=>{const b=n.getBoundingClientRect();return [(b.left-r.left)/r.width,(b.top-r.top)/r.height]})}')
@@ -92,12 +135,14 @@ with sync_playwright() as p:
         expect(east.get_by_role('button',name='正在投骰…',exact=True)).to_be_disabled()
         ctx.request.post(BASE+DELAY_ENDPOINT,data={'ms':0})
     expect(host.locator('.current-turn')).to_contain_text('点')
+    assert screen.locator('.screen-dice .dice-stage').bounding_box()['width']>150
     expect(host.locator('.current-turn h2')).to_contain_text('中南区',timeout=15000)
     expect(players[1].get_by_role('button',name='成为本回合投骰代表',exact=True)).to_be_visible()
     after=state();assert after['teams']['east']['position']>=18
     assert after['currentTeam']=='central' and after['phase']=='awaiting_dice'
     expect(screen.locator('[data-team=east]')).to_have_attribute('data-position',str(after['teams']['east']['position']))
     screen.reload();expect(screen.locator('[data-team=east]')).to_have_attribute('data-position',str(after['teams']['east']['position']))
+    screen.get_by_role('button',name='开启大屏声音',exact=True).click()
     east.reload();expect(east.locator('.player-hero')).to_contain_text('浏览器测试-东区')
     host.reload();expect(host.locator('.current-turn')).to_contain_text('中南区')
     print('PASS ordinary online turn automatically hands off to central without host next; three-screen sync and page refresh recovery',flush=True)
@@ -109,6 +154,8 @@ with sync_playwright() as p:
     expect(dinosaur).to_be_visible(timeout=15000)
     expect(dinosaur.locator('h2')).to_have_text('糟糕！调皮恐龙拦住去路！')
     expect(dinosaur.locator('.special-event-action')).to_have_text('后退2格')
+    screen.wait_for_function("window.__soundNotes.some(n=>n.frequency===261.63)")
+    assert screen.evaluate("window.__soundNotes.some(n=>n.frequency===150 || n.frequency===195)")
     api('pause')
     held=state();assert held['teams']['shanghai']['position']==6 and held['phase']=='tile_event'
     presentation_id=held['presentation']['id']
@@ -118,6 +165,7 @@ with sync_playwright() as p:
     screen.emulate_media(reduced_motion='reduce')
     assert dinosaur.locator('.special-event-card').evaluate('(x)=>getComputedStyle(x).animationName')=='none'
     screen.emulate_media(reduced_motion='no-preference')
+    screen.get_by_role('button',name='开启大屏声音',exact=True).click()
     api('resume')
     host.wait_for_function("document.querySelector('.current-turn')?.innerText.includes('本队回合完成')",timeout=15000)
     after_dinosaur=state()
@@ -133,9 +181,14 @@ with sync_playwright() as p:
     host.locator('.physical-buttons').get_by_role('button',name='2',exact=True).click()
     reward=screen.locator('.special-event[data-tile="2"]')
     expect(reward).to_be_visible(timeout=15000)
-    expect(reward.locator('.special-event-action')).to_have_text('前进2格')
+    expect(reward.locator('.special-event-action')).to_have_text('前进5格')
+    screen.wait_for_function("window.__soundNotes.some(n=>n.frequency===1046.5)")
+    api('audioSettings',{'effectsEnabled':False})
+    screen.evaluate('window.__soundNotes=[]')
     host.wait_for_function("document.querySelector('.current-turn')?.innerText.includes('本队回合完成')",timeout=15000)
-    assert state()['teams']['shanghai']['position']==4 and state()['quiz'] is None
+    assert state()['teams']['shanghai']['position']==7 and state()['quiz'] is None
+    assert screen.evaluate('window.__soundNotes.length')==0
+    api('audioSettings',{'effectsEnabled':True})
     host.get_by_role('button',name=re.compile('↶ 撤销')).click()
     expect(host.locator('.physical-buttons')).to_be_visible()
     # Land on04, import a clearly marked test question via management UI.
@@ -153,6 +206,9 @@ with sync_playwright() as p:
     host.get_by_role('button',name='开始答题',exact=True).click()
     sh=players[4]
     expect(sh.get_by_role('heading',name='自动化验证题（非正式题库）：请选择甲',exact=True)).to_be_visible()
+    # Sound controls stay usable above the question and final-result overlays.
+    screen.get_by_role('button',name='静音大屏',exact=True).click()
+    screen.get_by_role('button',name='恢复大屏声音',exact=True).click()
     player_token=sh.evaluate(f"localStorage.getItem('monopoly:{code}:player')")
     # All five players share a browser context; identities stay in each socket.
     assert 'answer' not in state('screen','')['quiz']['question']
@@ -198,6 +254,8 @@ with sync_playwright() as p:
     host.get_by_role('button',name='现场控制',exact=True).click()
     host.get_by_role('button',name='结束游戏',exact=True).click()
     expect(screen.get_by_role('heading',name='每一步，都精彩。',exact=True)).to_be_visible()
+    screen.get_by_role('button',name='静音大屏',exact=True).click()
+    expect(screen.get_by_role('button',name='恢复大屏声音',exact=True)).to_be_visible()
     host.get_by_role('button',name='排名与抽奖',exact=True).click()
     if host.locator('.tie-confirm').count():
         for checkbox in host.locator('.tie-confirm input[type=checkbox]').all(): checkbox.check()

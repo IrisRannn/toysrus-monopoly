@@ -73,6 +73,20 @@ test("20 tiles, exact five teams/colors, no score fields", () => {
   assert.equal(Object.values(s.players).filter((p) => p.team).length, 5);
   assert(!/score|bonusSteps|points/.test(JSON.stringify(s)));
 });
+test("audio controls are host-only, validate volume and preserve setup when restarting a game", () => {
+  const s = room();
+  assert.equal(s.audio.bgm, null);
+  assert.throws(() => command(s, player("east"), "audioSettings", { effectsEnabled: false }), /主持人/);
+  assert.throws(() => command(s, host, "audioSettings", { bgmEnabled: true }), /先上传/);
+  for (const value of [-0.1, 1.01, NaN, Infinity, "0.5"])
+    assert.throws(() => command(s, host, "audioSettings", { effectsVolume: value }), /音量/);
+  command(s, host, "audioSettings", { effectsEnabled: false, effectsVolume: 0.2, bgmVolume: 0.1 });
+  command(s, host, "reset", { confirm: s.code });
+  assert.equal(s.audio.effectsEnabled, false);
+  assert.equal(s.audio.effectsVolume, 0.2);
+  assert.equal(s.audio.bgmVolume, 0.1);
+  assert.equal(publicState(s, { role: "screen" }).audio.bgm, null);
+});
 test("online dice is backend-generated: 4 moves from 0 to tile04, duplicate rolls blocked", () => {
   const s = room();
   start(s);
@@ -103,12 +117,12 @@ test("physical Shanghai dice 5, normal players cannot roll or enter result; undo
   assert.equal(s.dice, null);
   assert.equal(s.events[s.events.length - 1].type, "undo");
 });
-test("tile02 reward +2 to04 does not chain into quiz", () => {
+test("tile02 racer advances five spaces to normal tile07 without chaining", () => {
   const s = room();
   start(s);
   onlineRoll(s, 2);
   settle(s);
-  assert.equal(s.teams.east.position, 4);
+  assert.equal(s.teams.east.position, 7);
   assert.equal(s.phase, "turn_complete");
   assert.equal(s.quiz, null);
 });
@@ -272,7 +286,7 @@ test("old rooms enable selective automation once and preserve later host choices
   assert.equal(paused.transitionAt, paused.pausedAt + 1800);
   assert.equal(tick(paused, NOW + 100000), false);
 });
-test("every special landing holds a server-timed 2.5 second presentation before its action", () => {
+test("every special landing holds a server-timed 3.5 second presentation before its action", () => {
   for (const tile of TILES.filter((t) => t.type !== "normal")) {
     const s = room();
     s.teams.east.position = tile.id - 1;
@@ -286,7 +300,7 @@ test("every special landing holds a server-timed 2.5 second presentation before 
     assert.equal(s.presentation.kind, tile.type);
     assert(s.presentation.title);
     const due = s.presentation.endsAt;
-    assert.equal(due - s.presentation.startedAt, 2500);
+    assert.equal(due - s.presentation.startedAt, 3500);
     assert.equal(tick(s, due - 1), false);
     assert.equal(s.teams.east.position, tile.id);
     assert.throws(() => command(s, host, "next", {}, due - 1), /先完成/);
@@ -340,7 +354,7 @@ test("correct-answer presentation cannot be skipped and common-pool tile15 still
     command(s, host, "closeQuiz", {}, NOW + 2);
     command(s, host, "reveal", {}, NOW + 3);
     const due = s.transitionAt;
-    assert.equal(due, NOW + 2503);
+    assert.equal(due, NOW + 3503);
     assert.equal(s.presentation.kind, "correct");
     assert.equal(s.presentation.effect, tile === 15 ? "直达终点" : "前进3格");
     assert.equal(tick(s, due - 1), false);
@@ -561,7 +575,7 @@ test("a full four-round five-team game draws all 19 questions without reuse acro
   for (let round = 1; round <= 4; round++) {
     for (const team of TEAM_ORDER) {
       assert.equal(s.currentTeam, team);
-      const value = round === 4 ? 3 : round === 1 && team === "shanghai" ? 2 : 4;
+      const value = round === 4 ? 3 : round === 1 && team === "shanghai" ? 5 : 4;
       if (team === "shanghai") command(s, host, "physicalDice", { value }, NOW);
       else onlineRoll(s, value);
       settle(s);

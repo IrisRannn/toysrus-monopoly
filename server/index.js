@@ -22,6 +22,8 @@ import {
   upgradeTurnAutomation,
 } from "./lib/engine.js";
 import { importQuestions, COLUMNS, safeCsv } from "./lib/import.js";
+import { audioState } from "../shared/audioSettings.js";
+import { saveBgm, bgmPath, MAX_BGM_BYTES } from "./lib/audioAssets.js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export async function createApp(options = {}) {
   const production = process.env.NODE_ENV === "production";
@@ -172,7 +174,7 @@ export async function createApp(options = {}) {
       throw new GameError("操作过于频繁，请稍后再试", 429);
   }
   const wrap = (fn) => (req, res, next) =>
-    Promise.resolve(fn(req, res)).catch(next);
+    Promise.resolve(fn(req, res, next)).catch(next);
   const perform = async (
     code,
     role,
@@ -189,7 +191,54 @@ export async function createApp(options = {}) {
     scheduleBroadcast(code);
     return state;
   };
-  const assetDir = path.join(root, "data", "assets");
+  const assetDir = path.resolve(options.assetDirectory || process.env.ASSET_DIR || path.join(root, "data", "assets"));
+  const readBgm = express.raw({ type: () => true, limit: MAX_BGM_BYTES });
+  app.post(
+    "/api/rooms/:code/bgm",
+    wrap(async (req, _res, next) => {
+      limit("bgm:" + req.ip, 10);
+      if ((await authHttp(req)).role !== "host") throw new GameError("仅主持人可上传背景音乐", 403);
+      next();
+    }),
+    (req, res, next) => readBgm(req, res, (error) => {
+      if (error) next(new GameError("请上传20MB以内的音频文件", error.status === 413 ? 413 : 400));
+      else next();
+    }),
+    wrap(async (req, res) => {
+      let name;
+      try { name = decodeURIComponent(String(req.headers["x-file-name"] || "背景音乐")); }
+      catch { throw new GameError("文件名称格式不正确"); }
+      const bgm = await saveBgm(assetDir, req.params.code, req.body, name);
+      await store.mutate(req.params.code, (s) => {
+        const actor = authorize(s, req.headers["x-game-role"], req.headers.authorization?.replace(/^Bearer /, ""));
+        if (actor.role !== "host") throw new GameError("仅主持人可上传背景音乐", 403);
+        s.audio = { ...audioState(s), bgm, bgmEnabled: false };
+        event(s, "bgm", `主持人上传背景音乐：${bgm.fileName}`, "host");
+      });
+      scheduleBroadcast(req.params.code);
+      res.json({ ok: true, bgm });
+    }),
+  );
+  app.get("/api/rooms/:code/bgm/:id", wrap(async (req, res) => {
+    const s = await store.read(req.params.code);
+    if (!s) throw new GameError("房间不存在", 404);
+    const bgm = audioState(s).bgm;
+    if (!bgm || bgm.id !== req.params.id) throw new GameError("背景音乐不存在", 404);
+    const file = bgmPath(assetDir, bgm);
+    if (!fs.existsSync(file)) throw new GameError("音乐文件暂不可用，请主持人重新上传", 404);
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.type(bgm.mimeType).sendFile(file);
+  }));
+  app.delete("/api/rooms/:code/bgm", wrap(async (req, res) => {
+    await store.mutate(req.params.code, (s) => {
+      const actor = authorize(s, req.headers["x-game-role"], req.headers.authorization?.replace(/^Bearer /, ""));
+      if (actor.role !== "host") throw new GameError("仅主持人可移除背景音乐", 403);
+      s.audio = { ...audioState(s), bgm: null, bgmEnabled: false };
+      event(s, "bgm", "主持人移除背景音乐", "host");
+    });
+    scheduleBroadcast(req.params.code);
+    res.json({ ok: true });
+  }));
   app.get("/api/board-image", (_req, res) => {
     const image = ["jpg", "png"]
       .map((ext) => path.join(assetDir, "游戏背景图." + ext))

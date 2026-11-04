@@ -84,7 +84,9 @@ export interface GameState {
   order: TeamId[];
   teams: Record<TeamId, Team>;
   dice: null | { value: number; source: string; at: number };
+  diceProbabilities: number[];
   movement: null | {
+    id?: string;
     team: TeamId;
     from: number;
     to: number;
@@ -106,6 +108,13 @@ export interface GameState {
   lastTile: number | null;
   positions: Position[];
   settings: { answerSeconds: number; autoAdvance: boolean };
+  audio: {
+    effectsEnabled: boolean;
+    effectsVolume: number;
+    bgmEnabled: boolean;
+    bgmVolume: number;
+    bgm: null | { id: string; format: string; mimeType: string; size: number; fileName: string; url: string };
+  };
   autoNextAt: number | null;
   rankings: Team[];
   events: GameEvent[];

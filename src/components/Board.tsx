@@ -108,10 +108,10 @@ export default function Board({
           rows = Math.ceil(mates.length / columns),
           row = Math.floor(index / columns),
           rowSize = Math.min(columns, mates.length - row * columns),
-          scale = mates.length > 3 ? 0.62 : mates.length > 1 ? 0.74 : 1,
-          gap = mates.length > 3 ? 2.7 : 3.2,
+          scale = mates.length > 3 ? 0.82 : mates.length > 1 ? 0.86 : 1,
+          gap = 6,
           dx = ((index % columns) - (rowSize - 1) / 2) * gap,
-          dy = (row - (rows - 1) / 2) * 5.8,
+          dy = (row - (rows - 1) / 2) * 11.5,
           label =
             mates.length > 1
               ? team.name.replace("中南区", "中南").replace("上海SSC", "上海")
@@ -133,14 +133,15 @@ export default function Board({
               {
                 left: `${point.x + dx}%`,
                 top: `${point.y + dy}%`,
-                width: `${3.9 * scale}%`,
+                width: `${6 * scale}%`,
+                "--token-label-size": `${1.05 * scale}cqw`,
                 "--team-color": team.color,
               } as React.CSSProperties
             }
           >
             <span
               className="token-crown"
-              style={{ fontSize: `${1.8 * scale}cqw` }}
+              style={{ fontSize: `${2.6 * scale}cqw` }}
             >
               {team.finishOrder ? "♛" : "★"}
             </span>

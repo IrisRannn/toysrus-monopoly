@@ -11,6 +11,7 @@ import { phaseNames, TILES } from "../config";
 import Board from "../components/Board";
 import Dice from "../components/Dice";
 import EventSpotlight from "../components/EventSpotlight";
+import ScreenAudio from "../components/ScreenAudio";
 export default function Screen() {
   const game = useGame("screen"),
     { state: s } = game,
@@ -50,6 +51,7 @@ export default function Screen() {
             ROOM <b>{s.code}</b>
           </div>
         </header>
+        <ScreenAudio state={s} offset={game.offset} />
         <div
           className="screen-focus"
           style={{ "--team-color": team.color } as React.CSSProperties}

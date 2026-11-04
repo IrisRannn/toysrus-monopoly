@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.js",
     "lint": "eslint .",
-    "benchmark:four": "node scripts/benchmark-four.mjs"
+    "benchmark:four": "node scripts/benchmark-four.mjs",
+    "simulate:game": "node scripts/simulate-game.mjs"
   },
   "dependencies": {
     "cors": "^2.8.6",

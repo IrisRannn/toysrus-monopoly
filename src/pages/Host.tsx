@@ -18,6 +18,7 @@ import {
 import { TILES, tileName, phaseNames } from "../config";
 import Board from "../components/Board";
 import Dice from "../components/Dice";
+import AudioControls from "../components/AudioControls";
 import type { GameState, Question, Position, TeamId } from "../types";
 type Tab = "control" | "players" | "questions" | "events" | "prizes" | "board";
 const tabs: [Tab, string, string][] = [
@@ -323,7 +324,7 @@ export default function Host() {
             <section className="panel">
               <div className="section-heading">
                 <h2>五队实时状态</h2>
-                <span className="muted">无限轮次 · 冲线先后决定名次</span>
+                <span className="muted">三轮为目标 · 实际冲线决定名次</span>
               </div>
               <div className="team-overview">
                 {s.order.map((id) => {
@@ -363,6 +364,10 @@ export default function Host() {
             <div className="two-columns">
               <section className="panel">
                 <h2>现场设置</h2>
+                <p className="muted">
+                  活动骰子：{s.diceProbabilities.map((chance, index) => `${index + 1}点${chance}%`).join("、")}。
+                  四支线上队伍使用相同分布；上海SSC按实体点数录入。三轮为节奏目标，不强制结束。
+                </p>
                 <label className="inline-label">
                   <span>答题时间（秒）</span>
                   <input
@@ -427,6 +432,7 @@ export default function Host() {
                 </div>
               </section>
             </div>
+            <AudioControls game={game} state={s} />
             <section className="panel host-end-game" aria-labelledby="end-game-heading">
               <div>
                 <h2 id="end-game-heading">结束本场游戏</h2>

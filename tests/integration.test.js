@@ -10,9 +10,10 @@ import { createStore } from "../server/lib/store.js";
 import { importQuestions, safeCsv, COLUMNS } from "../server/lib/import.js";
 import { newRoom, command, tick } from "../server/lib/engine.js";
 import { hash } from "../server/lib/auth.js";
+import { MAX_BGM_BYTES } from "../server/lib/audioAssets.js";
 async function fixture(file) {
   const store = await createStore({ databaseUrl: null, file });
-  const app = await createApp({ store });
+  const app = await createApp({ store, assetDirectory: path.join(path.dirname(file), "assets") });
   await new Promise((resolve) => app.server.listen(0, "127.0.0.1", resolve));
   return { ...app, url: `http://127.0.0.1:${app.server.address().port}` };
 }
@@ -43,6 +44,62 @@ const waitState = (socket, predicate) =>
     }
     socket.on("state:update", listener);
   });
+test("BGM upload is authenticated, bounded, streamed and retained across database restart", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "monopoly-bgm-"));
+  const file = path.join(directory, "state.sqlite");
+  let app = await fixture(file);
+  try {
+    const created = (await api(app.url, "/api/rooms", {})).body;
+    const { code, token } = created;
+    const player = (await api(app.url, `/api/rooms/${code}/players`, { team: "east", nickname: "音频权限测试" })).body;
+    const wave = Buffer.alloc(44 + 1600);
+    wave.write("RIFF", 0); wave.writeUInt32LE(wave.length - 8, 4); wave.write("WAVEfmt ", 8);
+    wave.writeUInt32LE(16, 16); wave.writeUInt16LE(1, 20); wave.writeUInt16LE(1, 22);
+    wave.writeUInt32LE(8000, 24); wave.writeUInt32LE(16000, 28); wave.writeUInt16LE(2, 32);
+    wave.writeUInt16LE(16, 34); wave.write("data", 36); wave.writeUInt32LE(1600, 40);
+    const upload = (body, credential = token, role = "host") => fetch(app.url + `/api/rooms/${code}/bgm`, {
+      method: "POST", headers: { "x-game-role": role, Authorization: "Bearer " + credential,
+        "Content-Type": "audio/wav", "x-file-name": encodeURIComponent("测试背景.wav") }, body,
+    });
+    assert.equal((await upload(wave, player.token, "player")).status, 403);
+    assert.equal((await upload(wave, "", "screen")).status, 403);
+    assert.equal((await upload(wave, "bad-token")).status, 401);
+    assert.equal((await upload(Buffer.from("not an audio file"))).status, 400);
+    assert.equal((await upload(Buffer.alloc(MAX_BGM_BYTES + 1))).status, 413);
+    const uploaded = await upload(wave);
+    assert.equal(uploaded.status, 200);
+    const { bgm } = await uploaded.json();
+    assert.equal(bgm.fileName, "测试背景.wav");
+    assert.equal(bgm.size, wave.length);
+    assert.equal((await app.store.read(code)).events.find((e) => e.type === "bgm").actor, "host");
+    assert(!JSON.stringify(bgm).includes("base64"));
+    const ranged = await fetch(app.url + bgm.url, { headers: { Range: "bytes=0-15" } });
+    assert.equal(ranged.status, 206);
+    assert.deepEqual(Buffer.from(await ranged.arrayBuffer()), wave.subarray(0, 16));
+    const changed = await api(app.url, `/api/rooms/${code}/commands`, {
+      type: "audioSettings", payload: { bgmEnabled: true, bgmVolume: 0.12 },
+    }, token);
+    assert.equal(changed.status, 200);
+    await app.close();
+    app = await fixture(file);
+    const restored = (await api(app.url, `/api/rooms/${code}/state`, null, token)).body;
+    assert.equal(restored.audio.bgm.id, bgm.id);
+    assert.equal(restored.audio.bgmEnabled, true);
+    assert.equal(restored.audio.bgmVolume, 0.12);
+    assert.deepEqual(Buffer.from(await (await fetch(app.url + bgm.url)).arrayBuffer()), wave);
+    assert.equal((await fetch(app.url + `/api/rooms/${code}/bgm`, {
+      method: "DELETE", headers: { "x-game-role": "player", Authorization: "Bearer " + player.token },
+    })).status, 403);
+    assert.equal((await fetch(app.url + `/api/rooms/${code}/bgm`, {
+      method: "DELETE", headers: { "x-game-role": "host", Authorization: "Bearer " + token },
+    })).status, 200);
+    assert.equal((await fetch(app.url + bgm.url)).status, 404);
+    assert.equal((await app.store.read(code)).audio.bgmEnabled, false);
+  } finally {
+    await app.close();
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});
 test("real HTTP + WebSocket, auth boundaries, concurrent roll lock, database reload and reconnect", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "monopoly-test-")),
     file = path.join(dir, "game.sqlite");

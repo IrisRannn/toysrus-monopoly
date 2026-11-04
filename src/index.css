@@ -1193,14 +1193,14 @@ td .pill {
 .game-token {
   position: absolute;
   transform: translate(-50%, -65%);
-  width: 3.9%;
+  width: 6%;
   aspect-ratio: 0.8;
   z-index: 10;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  filter: drop-shadow(0 0.22cqw 0.2cqw #0005);
+  filter: drop-shadow(0 0.25cqw 0.3cqw #190d0bbc);
   pointer-events: none;
   transition: filter 0.3s;
 }
@@ -1221,9 +1221,9 @@ td .pill {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid #ffffffa6;
+  border: 3px solid #fff4dd;
   border-radius: 50% 50% 25% 25%;
-  font-size: 0.66cqw;
+  font-size: var(--token-label-size, 1.05cqw);
   font-weight: 900;
   color: white;
   background: linear-gradient(
@@ -1309,6 +1309,7 @@ td .pill {
   gap: 3cqw;
   align-items: center;
   z-index: 20;
+  padding-right: 8.5cqw;
 }
 .screen-header .brand b {
   color: #ffe6b2;
@@ -1383,14 +1384,15 @@ td .pill {
   margin-top: 1.6cqw;
 }
 .screen-dice .dice-stage {
-  width: 4.8cqw;
-  height: 4.8cqw;
-  --dice-size: 4.8cqw;
+  width: 8.2cqw;
+  height: 8.2cqw;
+  --dice-size: 8.2cqw;
 }
 .screen-dice strong {
-  font-size: 4.5cqw;
+  font-size: 7.5cqw;
   line-height: 1;
-  font-weight: 500;
+  font-weight: 800;
+  text-shadow: 0 0.18cqw 0.45cqw #4a150bdd;
 }
 .screen-dice strong small {
   font-size: 0.8cqw;
@@ -2275,6 +2277,38 @@ td .pill {
   color: #92704b;
   font-size: 12px;
 }
+.screen-audio {
+  position: absolute;
+  top: 2.8%;
+  right: 2.5%;
+  z-index: 75;
+}
+.screen-audio > button {
+  color: #ffeac6;
+  background: #4b1712c9;
+  border: 1px solid #ffdca466;
+  border-radius: 0.4cqw;
+  padding: 0.45cqw 0.7cqw;
+  font-size: 0.65cqw;
+  white-space: nowrap;
+}
+.screen-audio > span {
+  position: absolute;
+  right: 0;
+  top: 120%;
+  width: 16cqw;
+  padding: 0.6cqw;
+  border-radius: 0.4cqw;
+  background: #fff4df;
+  color: #8c3028;
+  font-size: 0.65cqw;
+}
+.audio-controls h3 { font-size: 15px; margin: 0 0 15px; }
+.audio-controls .two-columns > div { min-width: 0; }
+.audio-controls input[type="range"] { padding: 0; accent-color: #a92b29; }
+.audio-controls .upload-label { display: inline-block; max-width: 100%; }
+.bgm-file-name { font-size: 13px; overflow-wrap: anywhere; }
+.dice-rules { margin-top: 18px; color: #8b7764; font-size: 12px; line-height: 1.8; }
 
 /* Short, server-timed cards keep special actions readable from across a room. */
 .special-event {

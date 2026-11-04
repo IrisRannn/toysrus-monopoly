@@ -10,6 +10,10 @@ import {
 } from "../../shared/gameRules.js";
 import { tilePositions } from "../../shared/tilePositions.js";
 import { tileMessages } from "../../shared/tileMessages.js";
+import { MOVEMENT_MS_PER_TILE, MIN_MOVEMENT_MS, PRESENTATION_MS } from "../../shared/gameTiming.js";
+import { DEFAULT_AUDIO, audioState } from "../../shared/audioSettings.js";
+import { ACTIVITY_DICE_WEIGHTS } from "../../shared/diceRules.js";
+import { rollActivityDie } from "./dice.js";
 import {
   BUILTIN_QUESTIONS,
   QUESTION_BANK_VERSION,
@@ -104,6 +108,7 @@ export function newRoom(code, hostHash) {
     positions: clone(tilePositions),
     settings: { answerSeconds: 30, autoAdvance: true },
     turnAutomationVersion: TURN_AUTOMATION_VERSION,
+    audio: clone(DEFAULT_AUDIO),
     undo: null,
   };
 }
@@ -149,12 +154,13 @@ function move(s, to, kind, now) {
   team.position = clampPosition(to);
   s.presentation = null;
   s.movement = {
+    id: randomUUID(),
     team: team.id,
     from,
     to: team.position,
     kind,
     startedAt: now,
-    duration: Math.max(500, Math.abs(team.position - from) * 240),
+    duration: Math.max(MIN_MOVEMENT_MS, Math.abs(team.position - from) * MOVEMENT_MS_PER_TILE),
   };
   s.phase = "moving";
   s.transitionAt = now + s.movement.duration;
@@ -179,7 +185,7 @@ function present(s, tile, kind, now) {
     title: correct ? "回答正确！" : tileMessages[tile.id],
     effect,
     startedAt: now,
-    endsAt: now + 2500,
+    endsAt: now + PRESENTATION_MS,
   };
   s.transitionAt = s.presentation.endsAt;
 }
@@ -351,7 +357,7 @@ export function command(
   type,
   p = {},
   now = Date.now(),
-  rng = () => randomInt(1, 7),
+  rng = rollActivityDie,
 ) {
   const host = actor.role === "host",
     player = s.players[actor.playerId];
@@ -572,7 +578,7 @@ export function command(
     requireThat(s.phase === "quiz_closed", "请先结束答题");
     s.quiz.result = tally(s.quiz.answers, s.quiz.question.answer);
     s.phase = "revealed";
-    s.transitionAt = now + 2500;
+    s.transitionAt = now + PRESENTATION_MS;
     if (s.quiz.result.correct)
       present(s, landing(current().position), "correct", now);
     s.undo = null;
@@ -598,6 +604,24 @@ export function command(
     s.order = [...p.order];
     s.currentTeam = p.order[0];
     record(s, "order", "主持人调整行动顺序");
+  } else if (type === "audioSettings") {
+    hostOnly();
+    const audio = audioState(s);
+    for (const key of ["effectsEnabled", "bgmEnabled"]) {
+      if (p[key] !== undefined) {
+        requireThat(typeof p[key] === "boolean", "声音开关应为开启或关闭");
+        if (key === "bgmEnabled" && p[key]) requireThat(audio.bgm, "请先上传背景音乐");
+        audio[key] = p[key];
+      }
+    }
+    for (const key of ["effectsVolume", "bgmVolume"]) {
+      if (p[key] !== undefined) {
+        requireThat(typeof p[key] === "number" && Number.isFinite(p[key]) && p[key] >= 0 && p[key] <= 1, "音量应为0–100%");
+        audio[key] = p[key];
+      }
+    }
+    s.audio = audio;
+    record(s, "audio_settings", "主持人调整大屏音乐与音效");
   } else if (type === "settings") {
     hostOnly();
     if (p.answerSeconds !== undefined) {
@@ -883,11 +907,13 @@ export function publicState(s, actor, online = new Set(), shared = null) {
       ]),
     ),
     dice: s.dice,
+    diceProbabilities: ACTIVITY_DICE_WEIGHTS,
     movement: s.movement,
     presentation: s.presentation ?? null,
     lastTile: s.lastTile,
     positions: s.positions,
     settings: s.settings,
+    audio: audioState(s),
     autoNextAt:
       s.status === "running" && s.phase === "turn_complete" && canAutoAdvance(s)
         ? s.transitionAt

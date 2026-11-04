@@ -8,7 +8,7 @@ export const TEAM_INFO = {
 };
 export const TILES = [
   [1, "童心发射站", "normal", 0, "🚀"],
-  [2, "反斗赛车手", "reward", 2, "🏎️"],
+  [2, "反斗赛车手", "reward", 5, "🏎️"],
   [3, "成长脚印", "normal", 0, "🌱"],
   [4, "记忆大考验①", "quiz", 3, "❓"],
   [5, "快乐能量耗尽", "penalty", -1, "🔋"],

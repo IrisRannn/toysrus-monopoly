@@ -155,6 +155,13 @@ export default function Player() {
             </p>
           </div>
         )}
+        {me.team !== "shanghai" && (
+          <details className="dice-rules">
+            <summary>活动骰子规则</summary>
+            <p>本活动提高大点数概率，各线上队伍规则相同。</p>
+            <p>{s.diceProbabilities.map((chance, index) => `${index + 1}点 ${chance}%`).join(" · ")}</p>
+          </details>
+        )}
       </section>
       {quiz && myTurn && (
         <section className="mobile-card quiz-card">
