@@ -55,7 +55,7 @@ export interface Quiz {
   submitted: number;
   eligible: number;
   myAnswer: string | null;
-  counts?: Record<string, number>;
+  counts: Record<string, number>;
   answers?: Record<string, { option: string; at: number }>;
   result: null | {
     counts: Record<string, number>;

@@ -7,8 +7,8 @@ import "./preview.css";
 export default function App() {
   const route = location.pathname;
   if (route.startsWith("/host")) return <Host />;
-  if (route === "/player-preview") return <PlayerPreview />;
-  if (route.startsWith("/player") || route === "/m") return <Player />;
+  if (route === "/player-classic") return <Player />;
+  if (route.startsWith("/player") || route === "/m") return <PlayerPreview />;
   if (route.startsWith("/screen")) return <Screen />;
   return (
     <main className="entry">

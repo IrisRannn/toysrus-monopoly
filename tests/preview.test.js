@@ -7,14 +7,15 @@ import { createApp } from "../server/index.js";
 import { createStore } from "../server/lib/store.js";
 import { newRoom, command, tick, publicState } from "../server/lib/engine.js";
 import { TEAM_ORDER } from "../shared/gameRules.js";
-import { EVENT_ROOM_CODE, PREVIEW_ROOM_CODE } from "../shared/siteSettings.js";
+import { EVENT_ROOM_CODE, LEGACY_ROOM_CODE, PREVIEW_ROOM_CODE } from "../shared/siteSettings.js";
 
 const host = { role: "host" };
 const player = (id) => ({ role: "player", playerId: id });
 test("host-only roster rejects self-assignment and unauthorized rolls, persists through rounds and resets, and clears invalid members", () => {
   const s = newRoom(PREVIEW_ROOM_CODE, "hosthash");
   assert.equal(s.settings.hostOnlyRepresentatives, true);
-  assert.equal(newRoom(EVENT_ROOM_CODE, "hosthash").settings.hostOnlyRepresentatives, false);
+  assert.equal(EVENT_ROOM_CODE, "261219");
+  assert.equal(newRoom(LEGACY_ROOM_CODE, "hosthash").settings.hostOnlyRepresentatives, false);
   for (const id of TEAM_ORDER) {
     s.players[id] = { id, team: null, removed: false };
     command(s, player(id), "join", { team: id, nickname: id });
@@ -79,8 +80,8 @@ test("preview room can be joined first, remains isolated from 261218, and retain
     assert.deepEqual(await app.store.codes(), [PREVIEW_ROOM_CODE]);
     const viewer = await api(`/api/rooms/${PREVIEW_ROOM_CODE}/players`, { team: "east", nickname: "普通玩家" });
     const previewHost = (await api(`/api/rooms/${PREVIEW_ROOM_CODE}/host-session`, {})).body;
-    const official = (await api("/api/rooms", {})).body;
-    const officialBefore = await app.store.read(EVENT_ROOM_CODE);
+    const official = (await api(`/api/rooms/${LEGACY_ROOM_CODE}/host-session`, {})).body;
+    const officialBefore = await app.store.read(LEGACY_ROOM_CODE);
     const post = (type, payload = {}, token = previewHost.token, role = "host") =>
       api(`/api/rooms/${PREVIEW_ROOM_CODE}/commands`, { type, payload }, token, role);
     assert.equal((await post("start")).status, 200);
@@ -102,8 +103,8 @@ test("preview room can be joined first, remains isolated from 261218, and retain
     assert.equal(employeeView.representativeRoster, undefined);
     assert.equal(employeeView.players, undefined);
     assert.equal(employeeView.questions, undefined);
-    assert.deepEqual(await app.store.read(EVENT_ROOM_CODE), officialBefore);
-    assert.equal((await api(`/api/rooms/${EVENT_ROOM_CODE}/state`, null, official.token)).body.settings.hostOnlyRepresentatives, false);
+    assert.deepEqual(await app.store.read(LEGACY_ROOM_CODE), officialBefore);
+    assert.equal((await api(`/api/rooms/${LEGACY_ROOM_CODE}/state`, null, official.token)).body.settings.hostOnlyRepresentatives, false);
     assert.equal((await api(`/api/rooms/${PREVIEW_ROOM_CODE}/state`, null, official.token)).status, 401);
   } finally {
     await app.close();

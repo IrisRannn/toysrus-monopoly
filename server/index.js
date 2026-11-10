@@ -26,7 +26,7 @@ import {
 import { importQuestions, COLUMNS, safeCsv } from "./lib/import.js";
 import { audioState } from "../shared/audioSettings.js";
 import { BUILTIN_BGM } from "../shared/builtinBgm.js";
-import { EVENT_ROOM_CODE, PREVIEW_ROOM_CODE, playerEntryPath } from "../shared/siteSettings.js";
+import { EVENT_ROOM_CODE, LEGACY_ROOM_CODE, PREVIEW_ROOM_CODE, playerEntryPath } from "../shared/siteSettings.js";
 import { saveBgm, bgmPath, MAX_BGM_BYTES } from "./lib/audioAssets.js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export async function createApp(options = {}) {
@@ -311,7 +311,7 @@ export async function createApp(options = {}) {
     let created = false;
     await store.mutate(code, (s) => {
       if (!s) {
-        if (![EVENT_ROOM_CODE, PREVIEW_ROOM_CODE].includes(code)) throw new GameError("房间不存在", 404);
+        if (![EVENT_ROOM_CODE, LEGACY_ROOM_CODE].includes(code)) throw new GameError("房间不存在", 404);
         created = true;
         return { state: newRoom(code, hash(credential)) };
       }

@@ -569,7 +569,7 @@ test("host-only controls, private answer filtering, cross-team votes, cutoff and
     const view = publicState(s, actor);
     assert.equal(view.quiz.question.answer, undefined);
     assert.equal(view.quiz.answers, undefined);
-    assert.equal(view.quiz.counts, undefined);
+    assert.deepEqual(view.quiz.counts, { A: 0, B: 0, C: 0, D: 0 });
     assert.equal(view.questions, undefined);
     assert.equal(view.hostHash, undefined);
     assert.equal(view.players, undefined);
@@ -800,7 +800,7 @@ test("shared broadcast views preserve each player private answer and cached iden
     delete regular.serverTime;
     assert.deepEqual(fast, regular);
     assert.equal(fast.quiz.answers, undefined);
-    assert.equal(fast.quiz.counts, undefined);
+    assert.deepEqual(fast.quiz.counts, { A: 1, B: 1, C: 0, D: 0 });
     assert.equal(fast.quiz.question.answer, undefined);
   }
   assert.equal(shared.quiz.myAnswer, null);
@@ -814,4 +814,34 @@ test("shared broadcast views preserve each player private answer and cached iden
     () => authorize(s, "player", "east-fixture-token", "other"),
     /凭证/,
   );
+});
+
+test("all teams see live option totals while only the active team can answer or change its vote", () => {
+  const s = toQuiz();
+  s.players.teammate = { id: "teammate", nickname: "同队员工", team: "east", removed: false };
+  command(s, player("east"), "answer", { option: "A" }, NOW + 1);
+  command(s, player("teammate"), "answer", { option: "B" }, NOW + 2);
+  const expectTotals = (counts) => {
+    const shared = publicState(s, { role: "screen" });
+    for (const actor of [player("east"), player("north"), { role: "screen" }]) {
+      for (const view of [publicState(s, actor), publicState(s, actor, new Set(), shared)]) {
+        assert.equal(view.quiz.question.text, s.quiz.question.text);
+        assert.deepEqual(view.quiz.counts, counts);
+        assert.equal(view.quiz.submitted, 2);
+        assert.equal(view.quiz.eligible, 2);
+        assert.equal(view.quiz.answers, undefined);
+        assert.equal(view.quiz.question.answer, undefined);
+        assert.equal(view.quiz.question.explanation, undefined);
+      }
+    }
+  };
+  expectTotals({ A: 1, B: 1, C: 0, D: 0 });
+  assert.throws(() => command(s, player("north"), "answer", { option: "C" }, NOW + 3), /当前队伍/);
+  command(s, player("east"), "answer", { option: "B" }, NOW + 4);
+  expectTotals({ A: 0, B: 2, C: 0, D: 0 });
+  command(s, host, "closeQuiz", {}, NOW + 5);
+  assert.throws(() => command(s, player("east"), "answer", { option: "A" }, NOW + 6), /截止/);
+  command(s, host, "reveal", {}, NOW + 7);
+  assert.equal(publicState(s, player("north")).quiz.question.answer, "A");
+  assert.deepEqual(publicState(s, { role: "screen" }).quiz.counts, { A: 0, B: 2, C: 0, D: 0 });
 });

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import type { GameState } from "../types";
-import { PREVIEW_ROOM_CODE } from "../../shared/siteSettings.js";
+import { EVENT_ROOM_CODE, PREVIEW_ROOM_CODE } from "../../shared/siteSettings.js";
 export type Role = "host" | "player" | "screen";
 export const tokenKey = (room: string, role: Role) =>
   `monopoly:${room}:${role}`;
@@ -10,7 +10,7 @@ export const initialRoom = () => {
   const params = new URLSearchParams(location.search);
   return params.has("room")
     ? params.get("room") || ""
-    : localStorage.getItem("monopoly:lastRoom") || "";
+    : EVENT_ROOM_CODE;
 };
 export const isPreviewRoute = () => ["/player-preview", "/host-preview"].includes(location.pathname);
 const rolePath = (role: Role) => isPreviewRoute() && role !== "screen" ? `/${role}-preview` : `/${role}`;

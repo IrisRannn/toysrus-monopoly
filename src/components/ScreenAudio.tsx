@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { SoundEffects } from "../audio/SoundEffects";
 import type { GameState } from "../types";
 
-export default function ScreenAudio({ state, offset }: { state: GameState; offset: number }) {
+export default function ScreenAudio({ state, offset, surface = "screen" }: {
+  state: GameState; offset: number; surface?: "screen" | "player";
+}) {
+  const device = surface === "player" ? "手机" : "大屏";
   const [enabled, setEnabled] = useState(false);
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState("");
@@ -57,7 +60,7 @@ export default function ScreenAudio({ state, offset }: { state: GameState; offse
     if (enabled && !muted && state.audio.bgmEnabled && state.audio.bgm) {
       void audio.play().catch((reason) => {
         if (reason.name !== "AbortError" && latest.current.state.audio.bgmEnabled)
-          setError("音乐未能播放，请再次点击大屏声音按钮");
+          setError("音乐未能播放，请再次点击声音按钮");
       });
     } else audio.pause();
     if (!state.audio.bgm) setError("");
@@ -81,14 +84,14 @@ export default function ScreenAudio({ state, offset }: { state: GameState; offse
         await media.current?.play();
       }
     } catch {
-      setError("请再次点击开启声音，并确认电脑音量已打开");
+      setError("请再次点击开启声音，并确认设备音量已打开");
     }
   }
   return (
-    <div className="screen-audio">
+    <div className={surface === "player" ? "screen-audio player-audio" : "screen-audio"}>
       <button type="button" onClick={() => void toggle()} aria-pressed={enabled && !muted}
-        aria-label={error ? "重试大屏声音" : !enabled ? "开启大屏声音" : muted ? "恢复大屏声音" : "静音大屏"}>
-        {error ? "♪ 重试开启声音" : !enabled ? "♪ 开启大屏声音" : muted ? "♪ 已静音" : "♪ 声音已开启"}
+        aria-label={error ? `重试${device}声音` : !enabled ? `开启${device}声音` : muted ? `恢复${device}声音` : `静音${device}`}>
+        {error ? "♪ 重试开启声音" : !enabled ? `♪ 开启${device}声音` : muted ? "♪ 已静音" : "♪ 声音已开启"}
       </button>
       {error && <span role="alert">{error}</span>}
       <audio ref={media} className="screen-bgm" src={state.audio.bgm?.url} loop preload="none"

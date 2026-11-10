@@ -1002,6 +1002,7 @@ export function publicState(s, actor, online = new Set(), shared = null) {
           },
           endsAt: q.endsAt,
           submitted: Object.keys(q.answers).length,
+          counts: tally(q.answers, q.question.answer).counts,
           eligible: Object.values(s.players).filter(
             (p) => p.team === s.currentTeam && !p.removed,
           ).length,
@@ -1009,7 +1010,6 @@ export function publicState(s, actor, online = new Set(), shared = null) {
           result: q.result,
           ...(host
             ? {
-                counts: tally(q.answers, q.question.answer).counts,
                 answers: q.answers,
               }
             : {}),

@@ -117,7 +117,7 @@ export default function Screen() {
                   >
                     <b>{key}</b>
                     {text}
-                    {quiz.result && <small>{quiz.result.counts[key]}票</small>}
+                    <small>{quiz.counts[key] || 0}人选择</small>
                   </div>
                 ))}
               </div>
@@ -155,7 +155,7 @@ export default function Screen() {
                     <span>
                       {s.phase === "quiz_closed"
                         ? "等待主持人公布答案"
-                        : "拿起手机，为队伍做出选择"}
+                        : `仅${team.name}玩家可答题 · 全员观看实时进度`}
                     </span>
                   </>
                 )}

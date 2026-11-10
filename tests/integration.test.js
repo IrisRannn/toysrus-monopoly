@@ -46,14 +46,14 @@ const waitState = (socket, predicate) =>
     }
     socket.on("state:update", listener);
   });
-test("fixed room 261218 reopens atomically without losing players, progress, questions or settings", async () => {
+test("official room 261219 reopens atomically without losing players, progress, questions or settings", async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "monopoly-fixed-room-"));
   const file = path.join(directory, "state.sqlite");
   let app = await fixture(file);
   try {
     const first = await api(app.url, "/api/rooms", {});
     assert.equal(first.status, 201);
-    assert.equal(first.body.code, "261218");
+    assert.equal(first.body.code, "261219");
     const code = first.body.code;
     const player = (await api(app.url, `/api/rooms/${code}/players`, { team: "east", nickname: "固定房间员工" })).body;
     await api(app.url, `/api/rooms/${code}/commands`, { type: "manualMove", payload: { team: "east", position: 9, reason: "固定房间进度测试" } }, first.body.token);
@@ -171,7 +171,9 @@ test("official MP3 is available without uploads in a fresh database and can be r
     app = await fixture(path.join(directory, "fresh.sqlite"));
     const fresh = (await api(app.url, "/api/rooms", {})).body;
     assert.equal((await app.store.read(fresh.code)).audio.bgm.id, BUILTIN_BGM.id);
-    assert.equal((await fetch(app.url + BUILTIN_BGM.url)).status, 200);
+    const freshMedia = await fetch(app.url + BUILTIN_BGM.url);
+    assert.equal(freshMedia.status, 200);
+    await freshMedia.arrayBuffer();
   } finally {
     await app.close();
     await fs.rm(directory, { recursive: true, force: true });
@@ -246,9 +248,8 @@ test("real HTTP + WebSocket, auth boundaries, concurrent roll lock, database rel
     await api(
       app.url,
       `/api/rooms/${code}/commands`,
-      { type: "claimRepresentative" },
-      creds[0].token,
-      "player",
+      { type: "setTeamRepresentative", payload: { team: "east", playerId: creds[0].playerId } },
+      host,
     );
     const rolls = await Promise.all(
       Array.from({ length: 10 }, () =>
