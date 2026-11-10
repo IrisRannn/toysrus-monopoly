@@ -144,7 +144,7 @@ export default function Host() {
             <Status state={s} />
           </div>
         </header>
-        {s.code === PREVIEW_ROOM_CODE && <div className="preview-notice"><span>正式年会房间261219 · 全员观看题目与实时选择人数，当前队伍作答</span><a href="/player?room=261219" target="_blank" rel="noreferrer">打开正式玩家页 ↗</a></div>}
+        {s.code === PREVIEW_ROOM_CODE && <div className="preview-notice"><span>正式年会房间{PREVIEW_ROOM_CODE} · 全员观看题目与实时选择人数，当前队伍作答</span><a href={`/player?room=${PREVIEW_ROOM_CODE}`} target="_blank" rel="noreferrer">打开正式玩家页 ↗</a></div>}
         <ErrorBar game={game} />
         {tab === "control" && (
           <>

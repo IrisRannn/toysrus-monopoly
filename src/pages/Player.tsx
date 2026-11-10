@@ -162,7 +162,7 @@ export default function Player() {
       </section>
       <footer className="mobile-footer">
         <span>房间 {s.code}</span>
-        {s.code === PREVIEW_ROOM_CODE && <a href="/player?room=261219">返回棋盘界面</a>}
+        {s.code === PREVIEW_ROOM_CODE && <a href={`/player?room=${PREVIEW_ROOM_CODE}`}>返回棋盘界面</a>}
         <button className="text-button" onClick={game.logout}>
           退出当前会话
         </button>

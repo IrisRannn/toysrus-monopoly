@@ -6,7 +6,7 @@ import path from "node:path";
 import { createApp } from "../server/index.js";
 import { createStore } from "../server/lib/store.js";
 import { tick } from "../server/lib/engine.js";
-import { EVENT_ROOM_CODE } from "../shared/siteSettings.js";
+import { EVENT_ROOM_CODE, LEGACY_ROOM_CODE } from "../shared/siteSettings.js";
 
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || "playwright");
 const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tru20-anniversary-browser-"));
@@ -49,7 +49,7 @@ try {
     const p = await page({ width: 844, height: 390 });
     // A previously remembered room must not override the new official default.
     await p.goto(base + "/");
-    await p.evaluate(() => localStorage.setItem("monopoly:lastRoom", "261218"));
+    await p.evaluate((room) => localStorage.setItem("monopoly:lastRoom", room), LEGACY_ROOM_CODE);
     await p.goto(base + route);
     assert.equal(await p.getByRole("textbox", { name: "游戏房间号", exact: true }).inputValue(), EVENT_ROOM_CODE);
     await p.getByPlaceholder("怎么称呼你？").fill(nickname);
@@ -83,7 +83,7 @@ try {
   await screen.waitForFunction(() => !document.querySelector("audio").paused);
   await east.screenshot({ path: path.join(output, "official-player-landscape.png") });
   assert(await east.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-  console.log("PASS official room 261219, landscape default and alias, area representative wording, independent phone opt-in and screen BGM");
+  console.log(`PASS official room ${EVENT_ROOM_CODE}, landscape default and alias, area representative wording, independent phone opt-in and screen BGM`);
 
   // Use the genuine physical-dice path to start a deterministic memory question.
   await command("reset", { confirm: EVENT_ROOM_CODE });

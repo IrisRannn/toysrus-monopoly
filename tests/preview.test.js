@@ -14,7 +14,7 @@ const player = (id) => ({ role: "player", playerId: id });
 test("host-only roster rejects self-assignment and unauthorized rolls, persists through rounds and resets, and clears invalid members", () => {
   const s = newRoom(PREVIEW_ROOM_CODE, "hosthash");
   assert.equal(s.settings.hostOnlyRepresentatives, true);
-  assert.equal(EVENT_ROOM_CODE, "261219");
+  assert.equal(EVENT_ROOM_CODE, "261218");
   assert.equal(newRoom(LEGACY_ROOM_CODE, "hosthash").settings.hostOnlyRepresentatives, false);
   for (const id of TEAM_ORDER) {
     s.players[id] = { id, team: null, removed: false };
@@ -56,7 +56,7 @@ test("host-only roster rejects self-assignment and unauthorized rolls, persists 
   assert.equal(s.representativeRoster.central, undefined);
 });
 
-test("preview room can be joined first, remains isolated from 261218, and retains host roster across restart without exposing the question bank", async () => {
+test("official room can be joined first, remains isolated from 261219, and retains host roster across restart without exposing the question bank", async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "monopoly-preview-"));
   const file = path.join(directory, "state.sqlite");
   async function fixture() {
