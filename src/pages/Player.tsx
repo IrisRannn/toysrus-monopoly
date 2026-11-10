@@ -111,7 +111,7 @@ export default function Player() {
                     </button>
                   ) : (
                     <p>
-                      本回合代表：<b>{team.representativeName || "等待主持人指定"}</b>
+                      本回合代表：<b>{team.representativeName || `等待${team.name}产生代表`}</b>
                       {representative ? "（你）" : ""}
                     </p>
                   )}
@@ -162,7 +162,7 @@ export default function Player() {
       </section>
       <footer className="mobile-footer">
         <span>房间 {s.code}</span>
-        {s.code === PREVIEW_ROOM_CODE && <a href="/player-preview">返回横屏体验</a>}
+        {s.code === PREVIEW_ROOM_CODE && <a href={`/player?room=${PREVIEW_ROOM_CODE}`}>返回棋盘界面</a>}
         <button className="text-button" onClick={game.logout}>
           退出当前会话
         </button>

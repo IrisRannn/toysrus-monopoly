@@ -10,7 +10,7 @@ import {
   type GameConnection,
 } from "../hooks/useGame";
 import type { TeamId, GameState } from "../types";
-import { EVENT_ROOM_CODE, PREVIEW_ROOM_CODE } from "../../shared/siteSettings.js";
+import { EVENT_ROOM_CODE } from "../../shared/siteSettings.js";
 export function Brand({ small = false }: { small?: boolean }) {
   return (
     <div className={"brand " + (small ? "small" : "")}>
@@ -86,16 +86,16 @@ export function RoomForm({ role }: { role: "host" | "player" | "screen" }) {
       <div className="entry-glow" />
       <section className="entry-card">
         <Brand />
-        <div className="eyebrow">{preview ? "手机横屏 · 体验窗口" : "一起玩 · 一路向前"}</div>
+        <div className="eyebrow">一起玩 · 一路向前</div>
         <h1>
-          {preview ? (role === "host" ? "体验主持人控制台" : "横屏棋盘体验") : role === "host"
+          {role === "host"
             ? "主持人控制中心"
             : role === "player"
               ? "加入你的队伍"
               : "准备好，一起出发"}
         </h1>
         <p className="muted">
-          {preview ? `独立体验房间 ${PREVIEW_ROOM_CODE}，横屏观看棋盘，由主持人指定投骰代表。` : role === "host"
+          {role === "host"
             ? `年会固定房间 ${EVENT_ROOM_CODE}，再次进入会保留游戏进度。`
             : role === "player"
               ? "五支队伍，同一场童心冒险。"
@@ -170,12 +170,12 @@ export function RoomForm({ role }: { role: "host" | "player" | "screen" }) {
               disabled={busy}
               onClick={() => void enter(true)}
             >
-              {preview ? "进入体验房间 261219" : "进入年会房间 261218"}
+              {`进入年会房间 ${EVENT_ROOM_CODE}`}
             </button>
           )}
         </form>
         {preview && role === "player" && (
-          <a className="preview-host-link" href="/host-preview" target="_blank" rel="noreferrer">打开体验主持人控制台 ↗</a>
+          <a className="preview-host-link" href="/host" target="_blank" rel="noreferrer">打开主持人控制台 ↗</a>
         )}
         <a className="back-link" href="/">
           ← 返回入口

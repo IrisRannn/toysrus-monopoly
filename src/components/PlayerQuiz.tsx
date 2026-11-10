@@ -10,17 +10,25 @@ export default function PlayerQuiz({ game, state: s, onSubmitted }: {
   const now = useNow(game.offset);
   const quiz = s.quiz;
   useEffect(() => setChoice(quiz?.myAnswer || ""), [quiz?.id, quiz?.myAnswer]);
-  if (!quiz || s.currentTeam !== s.me?.team) return null;
-  const canAnswer = s.phase === "answering" && s.status === "running" && now < quiz.endsAt;
+  if (!quiz) return null;
+  const currentTeam = s.teams[s.currentTeam];
+  const myTurn = s.currentTeam === s.me?.team;
+  const canAnswer = myTurn && s.phase === "answering" && s.status === "running" && now < quiz.endsAt;
   return (
     <section className="mobile-card quiz-card">
       <div className="section-heading">
         <span className="eyebrow">
-          全队一起答 · {quiz.submitted} / {quiz.eligible} 人
+          记忆大考验 · {currentTeam.name}
         </span>
         <Countdown state={s} offset={game.offset} />
       </div>
       <h2>{quiz.question.text}</h2>
+      <p className="quiz-public-progress" aria-live="polite" aria-atomic="true">
+        {quiz.submitted} / {quiz.eligible} 人已提交
+      </p>
+      <p className="quiz-audience-note">
+        {myTurn ? "轮到本队答题，截止前可以修改答案。" : `本题由${currentTeam.name}作答，你可以观看题目和实时选择人数。`}
+      </p>
       <div className="answer-options">
         {Object.entries(quiz.question.options).map(([key, text]) => (
           <button
@@ -31,7 +39,10 @@ export default function PlayerQuiz({ game, state: s, onSubmitted }: {
           >
             <b>{key}</b>
             <span>{text}</span>
-            {choice === key && <span>✓</span>}
+            <span className="option-votes" aria-label={`${key}选项${quiz.counts[key] || 0}人选择`}>
+              {quiz.counts[key] || 0} 人
+            </span>
+            {myTurn && choice === key && <span>✓</span>}
           </button>
         ))}
       </div>
@@ -58,7 +69,9 @@ export default function PlayerQuiz({ game, state: s, onSubmitted }: {
         </>
       ) : (
         <p className="muted">
-          {s.phase === "quiz_closed"
+          {!myTurn
+            ? `仅${currentTeam.name}玩家可以提交答案。`
+            : s.phase === "quiz_closed"
             ? "答案已锁定，等待主持人公布。"
             : s.status === "paused"
               ? "游戏暂停，暂不可提交。"

@@ -102,7 +102,7 @@ export default function Host() {
           <Brand small />
         </a>
         <div className="sidebar-room">
-          <span>{s.code === PREVIEW_ROOM_CODE ? "横屏体验房间" : "年会游戏房间"}</span>
+          <span>年会游戏房间</span>
           <b>{s.code}</b>
           <Network connected={game.connected} />
         </div>
@@ -144,7 +144,7 @@ export default function Host() {
             <Status state={s} />
           </div>
         </header>
-        {s.code === PREVIEW_ROOM_CODE && <div className="preview-notice"><span>横屏体验房间261219 · 与正式房间261218的队员和进度独立</span><a href="/player-preview" target="_blank" rel="noreferrer">打开横屏体验玩家页 ↗</a></div>}
+        {s.code === PREVIEW_ROOM_CODE && <div className="preview-notice"><span>正式年会房间{PREVIEW_ROOM_CODE} · 全员观看题目与实时选择人数，当前队伍作答</span><a href={`/player?room=${PREVIEW_ROOM_CODE}`} target="_blank" rel="noreferrer">打开正式玩家页 ↗</a></div>}
         <ErrorBar game={game} />
         {tab === "control" && (
           <>
@@ -651,7 +651,7 @@ function RepresentativeRoster({ game, state: s }: { game: GameConnection; state:
             <option value="">请选择已加入的员工</option>
             {members.map((p) => <option key={p.id} value={p.id}>{p.nickname}{p.online ? " · 在线" : " · 离线"}</option>)}
           </select>
-          <small>{locked ? "本队回合结束后可更换" : members.length ? "核对员工后指定；可随时清空" : "请先让本队代表加入体验房间"}</small>
+          <small>{locked ? "本队回合结束后可更换" : members.length ? "核对员工后指定；可随时清空" : "请先让本队代表加入年会房间"}</small>
         </label>;
       })}
     </div>
