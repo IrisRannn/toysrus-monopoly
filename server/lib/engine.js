@@ -53,6 +53,7 @@ const gameFields = [
   "pausedAt",
   "lastTile",
   "prizeConfirmation",
+  "victory",
 ];
 export function event(s, type, text, actor = "system", data = {}) {
   s.events.push({
@@ -95,6 +96,7 @@ export function freshGame() {
     pausedAt: null,
     lastTile: null,
     prizeConfirmation: null,
+    victory: null,
   };
 }
 export function newRoom(code, hostHash) {
@@ -176,6 +178,45 @@ function finish(s, team, now) {
   team.finishedAt = now;
   event(s, "finish", `${team.name}冲线，获得第${team.finishOrder}名`);
 }
+function celebrateFirstWinner(s, now) {
+  if (s.code !== PREVIEW_ROOM_CODE) return false;
+  const winner = Object.values(s.teams).find((team) => team.finishOrder === 1);
+  if (!winner) return false;
+  s.victory ||= { id: randomUUID(), team: winner.id, at: now };
+  s.status = "champion";
+  s.phase = "turn_complete";
+  s.transitionAt = null;
+  s.presentation = null;
+  s.pausedAt = null;
+  return true;
+}
+export function upgradeFirstWinner(s, now = Date.now()) {
+  if (s.code !== PREVIEW_ROOM_CODE || !["running", "paused"].includes(s.status)) return false;
+  if (!Object.values(s.teams).some((team) => team.finishOrder === 1)) return false;
+  if (s.phase === "moving" && s.teams[s.currentTeam].finishOrder === 1) return false;
+  return celebrateFirstWinner(s, now);
+}
+function closeBallot(s, now, actor = "system") {
+  const q = s.quiz;
+  const result = tally(q.answers, q.question.answer);
+  if (!q.revote && result.tie) {
+    const maximum = Math.max(...Object.values(result.counts));
+    q.allowedOptions = Object.keys(result.counts).filter((key) => result.counts[key] === maximum);
+    q.firstRound = { counts: result.counts, submitted: result.submitted };
+    q.revote = true;
+    q.ballotId = randomUUID();
+    q.answers = {};
+    q.startedAt = now;
+    q.endsAt = now + 15000;
+    s.phase = "answering";
+    s.transitionAt = null;
+    event(s, "quiz_revote", `最高票并列，${q.allowedOptions.join("、")}选项加投15秒`, actor);
+  } else {
+    s.phase = "quiz_closed";
+    s.transitionAt = null;
+    event(s, "quiz_close", q.revote ? "加投已结束，等待公布" : "答题已结束，等待公布", actor);
+  }
+}
 function rosterRepresentative(s, team) {
   const id = s.representativeRoster?.[team];
   const employee = s.players[id];
@@ -234,6 +275,7 @@ function applyTile(s, tile, now) {
 }
 function canAutoAdvance(s) {
   return (
+    (s.code !== PREVIEW_ROOM_CODE || !Object.values(s.teams).some((team) => team.finishOrder)) &&
     s.settings.autoAdvance &&
     ["running", "paused"].includes(s.status) &&
     s.currentTeam !== "shanghai" &&
@@ -249,6 +291,7 @@ function scheduleNextTurn(s, now) {
 function complete(s, now) {
   s.presentation = null;
   s.phase = "turn_complete";
+  if (celebrateFirstWinner(s, now)) return;
   scheduleNextTurn(s, now);
   if (Object.values(s.teams).every((t) => t.finishOrder)) {
     s.status = "finished";
@@ -257,6 +300,7 @@ function complete(s, now) {
   }
 }
 function next(s, _now, actor = "system") {
+  requireThat(s.code !== PREVIEW_ROOM_CODE || !Object.values(s.teams).some((team) => team.finishOrder), "冠军已产生，请主持人结束游戏");
   requireThat(s.phase === "turn_complete", "请先完成当前格子事件或答题");
   checkpoint(s, "切换下一队");
   const index = s.order.indexOf(s.currentTeam);
@@ -285,9 +329,7 @@ function next(s, _now, actor = "system") {
 export function tick(s, now = Date.now()) {
   if (s.status !== "running") return false;
   if (s.phase === "answering" && s.quiz.endsAt <= now) {
-    s.phase = "quiz_closed";
-    s.transitionAt = null;
-    event(s, "quiz_close", "答题时间结束");
+    closeBallot(s, now);
     return true;
   }
   if (!s.transitionAt || s.transitionAt > now) return false;
@@ -295,6 +337,10 @@ export function tick(s, now = Date.now()) {
   const team = s.teams[s.currentTeam];
   if (s.phase === "rolling") move(s, team.position + s.dice.value, "dice", now);
   else if (s.phase === "moving") {
+    if (s.code === PREVIEW_ROOM_CODE && team.finishOrder === 1) {
+      complete(s, now);
+      return true;
+    }
     if (s.movement.kind !== "dice") {
       complete(s, now);
       return true;
@@ -443,6 +489,7 @@ export function command(
       if (rosterRepresentative(s, id)) s.teams[id].representativeId = rosterRepresentative(s, id);
     s.undo = null;
     record(s, "start", "游戏开始 · 20格无限轮次");
+    celebrateFirstWinner(s, now);
   } else if (type === "pause") {
     hostOnly();
     running();
@@ -472,7 +519,7 @@ export function command(
     record(s, "reset", "主持人重置游戏，保留员工与题库");
   } else if (type === "end") {
     hostOnly();
-    requireThat(["running", "paused"].includes(s.status), "游戏未进行");
+    requireThat(["running", "paused", "champion"].includes(s.status), "游戏未进行");
     s.status = "finished";
     s.transitionAt = null;
     s.presentation = null;
@@ -584,6 +631,9 @@ export function command(
       tile: current().position,
       question: clone(question),
       answers: {},
+      revote: false,
+      ballotId: randomUUID(),
+      allowedOptions: ["A", "B", "C", "D"],
       startedAt: now,
       endsAt: now + seconds * 1000,
       result: null,
@@ -611,6 +661,7 @@ export function command(
     requireThat(s.phase === "answering" && now < s.quiz.endsAt, "答题已截止");
     requireThat(player.team === s.currentTeam, "仅当前队伍员工可参与本题");
     requireThat(["A", "B", "C", "D"].includes(p.option), "无效选项");
+    requireThat((s.quiz.allowedOptions || ["A", "B", "C", "D"]).includes(p.option), "本次加投仅可选择并列的选项");
     s.quiz.answers[player.id] = { option: p.option, at: now };
     s.undo = null;
     record(s, "answer", `${player.nickname}提交或更新答案`, player.id, {
@@ -620,13 +671,18 @@ export function command(
     hostOnly();
     running();
     requireThat(s.phase === "answering", "当前未答题");
-    s.phase = "quiz_closed";
-    record(s, "quiz_close", "主持人提前结束答题");
+    closeBallot(s, now, "host");
   } else if (type === "reveal") {
     hostOnly();
     running();
     requireThat(s.phase === "quiz_closed", "请先结束答题");
-    s.quiz.result = tally(s.quiz.answers, s.quiz.question.answer);
+    const result = tally(s.quiz.answers, s.quiz.question.answer);
+    if (!s.quiz.revote && result.tie) {
+      closeBallot(s, now, "host");
+      return;
+    }
+    const tiedAccepted = !!s.quiz.revote && result.tie && result.submitted > 0;
+    s.quiz.result = { ...result, correct: result.correct || tiedAccepted, tiedAccepted };
     s.phase = "revealed";
     s.transitionAt = now + PRESENTATION_MS;
     if (s.quiz.result.correct)
@@ -635,7 +691,7 @@ export function command(
     record(
       s,
       "reveal",
-      `公布答案：${s.quiz.result.majority || "无唯一最多选项"} · ${s.quiz.result.correct ? "答对" : "未答对"}`,
+      `公布答案：${s.quiz.result.majority || (tiedAccepted ? "加投仍平票，按答对奖励" : "无人作答")} · ${s.quiz.result.correct ? "答对" : "未答对"}`,
     );
   } else if (type === "applyAnswer") {
     hostOnly();
@@ -726,7 +782,9 @@ export function command(
     checkpoint(s, "手动修正");
     s.teams[p.team].position = p.position;
     finish(s, s.teams[p.team], now);
-    if (p.team === s.currentTeam && p.position === 20 && s.status !== "waiting")
+    if (s.status !== "waiting" && celebrateFirstWinner(s, now)) {
+      s.transitionAt = null;
+    } else if (p.team === s.currentTeam && p.position === 20 && s.status !== "waiting")
       complete(s, now);
     else if (
       s.status !== "waiting" &&
@@ -905,7 +963,7 @@ export function prizeCandidates(s) {
     needsConfirmation: false,
     prizes: [
       ["一等奖", 500, 1, first],
-      ["二等奖", 300, 2, second],
+      ["二等奖", 300, 3, second],
       ["三等奖", 120, 5, TEAM_ORDER],
     ].map(([name, value, quantity, teams]) => ({
       name,
@@ -970,6 +1028,7 @@ export function publicState(s, actor, online = new Set(), shared = null) {
     diceProbabilities: ACTIVITY_DICE_WEIGHTS,
     movement: s.movement,
     presentation: s.presentation ?? null,
+    victory: s.victory ?? null,
     lastTile: s.lastTile,
     positions: s.positions,
     settings: s.settings,
@@ -1001,6 +1060,9 @@ export function publicState(s, actor, online = new Set(), shared = null) {
               : {}),
           },
           endsAt: q.endsAt,
+          ballotId: q.ballotId || q.id,
+          revote: !!q.revote,
+          allowedOptions: q.allowedOptions || ["A", "B", "C", "D"],
           submitted: Object.keys(q.answers).length,
           counts: tally(q.answers, q.question.answer).counts,
           eligible: Object.values(s.players).filter(

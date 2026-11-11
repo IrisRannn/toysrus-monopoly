@@ -64,8 +64,7 @@
 .screen-audio.player-audio { position: static; flex-shrink: 0; z-index: auto; }
 .screen-audio.player-audio > button { width: 100%; min-height: 30px; padding: 5px 8px; border-radius: 6px; font-size: 11px; }
 .screen-audio.player-audio > span { position: static; display: block; width: auto; padding: 5px; font-size: 11px; }
-.experience-quiz-progress { margin: 4px 0 0; font-size: 10px; color: #856852; }
-.quiz-public-progress { margin: 0 0 6px; font-size: 13px; font-weight: 800; color: #a92b29; font-variant-numeric: tabular-nums; }
+.quiz-revote { margin: 0 0 10px; padding: 7px 10px; border-radius: 6px; background: #ffedb5; color: #9c4d18; font-size: 12px; }
 .quiz-audience-note { margin: 0 0 10px; color: #856852; font-size: 12px; line-height: 1.5; }
 .answer-options .option-votes { flex-shrink: 0; margin-left: auto; padding: 3px 7px; border-radius: 5px; background: #f4e6d8; color: #7d3827; font-size: 12px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .experience-quiz-dialog .answer-options button:disabled { opacity: 1; }
