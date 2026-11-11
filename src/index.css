@@ -1066,6 +1066,24 @@ td .pill {
   font-size: 12px;
   color: #af8b79;
 }
+.host-restart-zone {
+  margin-top: 96px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+}
+.host-restart-zone h3 {
+  margin: 0 0 8px;
+}
+.host-restart-zone p {
+  margin: 0;
+  line-height: 1.7;
+}
+.host-restart-zone button {
+  flex-shrink: 0;
+}
 .rank-row {
   display: flex;
   align-items: center;

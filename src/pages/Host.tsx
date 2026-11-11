@@ -81,6 +81,16 @@ export default function Host() {
   const guard = (text: string, type: string, payload: unknown = {}) => {
     if (confirm(text)) void game.cmd(type, payload);
   };
+  const restartGame = () => {
+    const code = prompt(`请输入房间号 ${s.code} 确认重新开始游戏`);
+    if (code === null) return;
+    if (code.trim() !== s.code) {
+      alert("房间号不正确，游戏未重新开始。");
+      return;
+    }
+    if (confirm("再次确认：棋子将回到起点，本局答题和排名将清空。员工、题库和音频设置会保留，并返回等待开场。确定重新开始游戏？"))
+      void game.cmd("reset", { confirm: s.code });
+  };
   const exportFile = async (kind: string, name: string) => {
     try {
       await download(s.code, kind, name);
@@ -614,24 +624,19 @@ export default function Host() {
                 </article>
               ))}
             </div>
-            <div className="danger-zone">
-              <h3>重置游戏</h3>
-              <p>保留房间员工、题库和历史日志，棋子回到起点。</p>
-              <button
-                className="danger"
-                onClick={() => {
-                  const code = prompt(`请输入房间号 ${s.code} 确认重置`);
-                  if (code && confirm("再次确认：重置本场游戏？"))
-                    void game.cmd("reset", { confirm: code });
-                }}
-              >
-                重置本场游戏
-              </button>
-            </div>
           </section>
         )}
         {tab === "prizes" && <PrizeManager game={game} state={s} />}
         {tab === "board" && <BoardCalibration game={game} state={s} />}
+        <section className="danger-zone host-restart-zone" aria-label="游戏重开设置">
+          <div>
+            <h3>重新开始本场游戏</h3>
+            <p>棋子回到起点，清空本局答题和排名；保留员工、题库和音频设置，返回等待开场。</p>
+          </div>
+          <button className="danger" disabled={disabled} onClick={restartGame}>
+            重新开始游戏
+          </button>
+        </section>
       </main>
     </div>
   );
