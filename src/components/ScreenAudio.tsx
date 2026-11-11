@@ -9,14 +9,27 @@ export default function ScreenAudio({ state, offset, surface = "screen" }: {
   const [enabled, setEnabled] = useState(false);
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState("");
+  const [victoryPlaying, setVictoryPlaying] = useState(false);
   const effects = useRef<SoundEffects | null>(null);
   const media = useRef<HTMLAudioElement>(null);
   const latest = useRef({ state, offset, enabled, muted });
   latest.current = { state, offset, enabled, muted };
   const lastPresentation = useRef<string | null>(null);
   const motion = useRef({ id: "", step: -1 });
+  const seenVictory = useRef<string | null | undefined>(undefined);
 
   useEffect(() => () => effects.current?.close(), []);
+  useEffect(() => {
+    const id = state.victory?.id || null;
+    if (seenVictory.current === undefined) { seenVictory.current = id; return; }
+    if (seenVictory.current === id) return;
+    seenVictory.current = id;
+    if (!id || state.status !== "champion" || !enabled || muted || !state.audio.effectsEnabled) return;
+    effects.current?.victory();
+    setVictoryPlaying(true);
+    const timer = setTimeout(() => setVictoryPlaying(false), 3200);
+    return () => { clearTimeout(timer); setVictoryPlaying(false); };
+  }, [state.victory?.id]);
   useEffect(() => {
     if (!enabled || muted || !state.audio.effectsEnabled || state.status !== "running" || state.phase !== "rolling") return;
     effects.current?.roll();
@@ -53,8 +66,8 @@ export default function ScreenAudio({ state, offset, surface = "screen" }: {
   useEffect(() => {
     const audio = media.current;
     if (!audio) return;
-    const action = state.audio.effectsEnabled && state.status === "running" &&
-      (state.presentation || state.phase === "rolling" || state.phase === "moving");
+    const action = victoryPlaying || (state.audio.effectsEnabled && state.status === "running" &&
+      (state.presentation || state.phase === "rolling" || state.phase === "moving"));
     audio.volume = state.audio.bgmVolume * (action ? 0.18 : 1);
     audio.muted = !enabled || muted;
     if (enabled && !muted && state.audio.bgmEnabled && state.audio.bgm) {
@@ -65,7 +78,7 @@ export default function ScreenAudio({ state, offset, surface = "screen" }: {
     } else audio.pause();
     if (!state.audio.bgm) setError("");
   }, [enabled, muted, state.audio.bgm?.id, state.audio.bgmEnabled, state.audio.bgmVolume,
-    state.audio.effectsEnabled, state.presentation?.id, state.phase, state.status]);
+    state.audio.effectsEnabled, state.presentation?.id, state.phase, state.status, victoryPlaying]);
 
   async function toggle() {
     setError("");

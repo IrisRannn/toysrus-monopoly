@@ -21,6 +21,7 @@ import Dice from "../components/Dice";
 import AudioControls from "../components/AudioControls";
 import type { GameState, Question, Position, TeamId } from "../types";
 import { PREVIEW_ROOM_CODE, playerEntryPath } from "../../shared/siteSettings.js";
+import { votePercentage } from "../../shared/votePercentages.js";
 type Tab = "control" | "players" | "questions" | "events" | "prizes" | "board";
 const tabs: [Tab, string, string][] = [
   ["control", "◈", "现场控制"],
@@ -156,6 +157,10 @@ export default function Host() {
         </header>
         {s.code === PREVIEW_ROOM_CODE && <div className="preview-notice"><span>正式年会房间{PREVIEW_ROOM_CODE} · 全员观看题目与实时选择人数，当前队伍作答</span><a href={`/player?room=${PREVIEW_ROOM_CODE}`} target="_blank" rel="noreferrer">打开正式玩家页 ↗</a></div>}
         <ErrorBar game={game} />
+        {s.status === "champion" && <section className="champion-notice">
+          <div><h2>🏆 {s.victory && s.teams[s.victory.team].name}率先冲线！</h2><p>游戏已停止继续，点击结束游戏揭晓五队排名和抽奖名额。</p></div>
+          <button className="primary" disabled={disabled} onClick={() => guard("是否结束游戏并展示荣耀榜？", "end")}>结束游戏，揭晓荣耀榜</button>
+        </section>}
         {tab === "control" && (
           <>
             <div className="control-top">
@@ -460,7 +465,7 @@ export default function Host() {
               <button
                 type="button"
                 className="danger-subtle"
-                disabled={disabled || !["running", "paused"].includes(s.status)}
+                disabled={disabled || !["running", "paused", "champion"].includes(s.status)}
                 onClick={() => guard("是否结束游戏？", "end")}
               >
                 结束游戏
@@ -749,21 +754,16 @@ function QuizControl({
                     {text}
                     <i
                       style={{
-                        width:
-                          (quiz.eligible
-                            ? ((quiz.counts?.[key] || 0) / quiz.eligible) * 100
-                            : 0) + "%",
+                        width: votePercentage(quiz.counts, key),
                       }}
                     />
                   </span>
-                  <strong>{quiz.counts?.[key] || 0}票</strong>
+                  <strong>{votePercentage(quiz.counts, key)}</strong>
                 </div>
               ))}
             </div>
-            <p>
-              {quiz.submitted} / {quiz.eligible} 人已提交 ·
-              正确答案仅主持人可见：<b>{quiz.question.answer}</b>
-            </p>
+            {quiz.revote && <p className="quiz-revote">平票加投 · 仅{quiz.allowedOptions.join("、")}选项 · 15秒</p>}
+            <p>正确答案仅主持人可见：<b>{quiz.question.answer}</b></p>
             <details className="answer-details">
               <summary>查看员工答题明细</summary>
               {Object.entries(quiz.answers || {}).map(([id, answer]) => (
@@ -782,7 +782,7 @@ function QuizControl({
                 }
                 onClick={() => void game.cmd("closeQuiz")}
               >
-                提前结束答题
+                {quiz.revote ? "提前结束加投" : "提前结束答题"}
               </button>
               <button
                 className="primary"
@@ -807,8 +807,8 @@ function QuizControl({
             </div>
             {quiz.result && (
               <p className="notice">
-                最终选择：{quiz.result.majority || "无唯一最多选项"} ·{" "}
-                {quiz.result.correct
+                最终选择：{quiz.result.majority || (quiz.result.tie ? "加投最高票并列" : "无人提交")} ·{" "}
+                {quiz.result.tiedAccepted ? "加投仍平票，按答对奖励" : quiz.result.correct
                   ? "答对，执行格子前进效果"
                   : "未答对，原地不动"}
                 。{quiz.question.explanation}
@@ -1207,7 +1207,7 @@ function PrizeManager({
           <div>
             <b>二等奖</b>
             <strong>
-              ¥300 <small>× 2</small>
+              ¥300 <small>× 3</small>
             </strong>
             <span>前3名队伍</span>
           </div>

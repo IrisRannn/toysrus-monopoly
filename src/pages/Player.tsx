@@ -73,6 +73,7 @@ export default function Player() {
         <h2>
           {s.status === "finished"
             ? "本场旅程已完成"
+            : s.status === "champion" ? "冠军已诞生，等待颁奖"
             : s.status === "paused"
               ? "稍作休息，童心继续"
               : myTurn
@@ -81,7 +82,7 @@ export default function Player() {
         </h2>
         <p className="muted">
           {team.finishOrder
-            ? `已获得第${team.finishOrder}名，继续为大家加油！`
+            ? `已获得第${team.finishOrder}名，等待主持人颁奖！`
             : s.autoNextAt
               ? "本队回合完成，即将自动切换下一队"
               : phaseNames[s.phase]}

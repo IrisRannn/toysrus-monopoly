@@ -46,7 +46,7 @@ export default function AudioControls({ game, state }: { game: GameConnection; s
       <div className="section-heading">
         <div>
           <h2 id="audio-controls-heading">现场音乐与音效</h2>
-          <p className="muted">仅大屏播放声音。每次打开或刷新大屏，请先在投屏电脑点击一次“开启大屏声音”。</p>
+          <p className="muted">大屏统一播放，手机可手动开启声音。每次打开或刷新大屏，请先点击“开启大屏声音”。</p>
         </div>
       </div>
       <div className="two-columns">
@@ -55,7 +55,7 @@ export default function AudioControls({ game, state }: { game: GameConnection; s
           <label className="check-label">
             <input type="checkbox" checked={state.audio.effectsEnabled} disabled={disabled}
               onChange={(e) => void game.cmd("audioSettings", { effectsEnabled: e.target.checked })} />
-            开启摇骰、特殊格与棋子脚步音效
+            开启摇骰、特殊格、脚步与冠军胜利音效
           </label>
           <label>音效音量 · {Math.round(effectsVolume * 100)}%
             <input type="range" min="0" max="100" value={Math.round(effectsVolume * 100)} disabled={disabled}

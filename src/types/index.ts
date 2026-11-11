@@ -49,6 +49,9 @@ export interface GameEvent {
 }
 export interface Quiz {
   id: string;
+  ballotId: string;
+  revote: boolean;
+  allowedOptions: string[];
   tile: number;
   question: Question;
   endsAt: number;
@@ -64,6 +67,7 @@ export interface Quiz {
     tie: boolean;
     correct: boolean;
     correctAnswer: string;
+    tiedAccepted?: boolean;
   };
 }
 export interface Prize {
@@ -121,6 +125,7 @@ export interface GameState {
   events: GameEvent[];
   serverTime: number;
   pausedAt: number | null;
+  victory: null | { id: string; team: TeamId; at: number };
   onlineCount: number;
   quiz: Quiz | null;
   me: Employee | null;

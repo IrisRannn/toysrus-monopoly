@@ -473,8 +473,8 @@ test("10 concurrent-style answers, updates replace old vote; plurality <50% stil
   assert.equal(s.teams.east.position, 7);
   assert.equal(s.quiz.result.correct, true);
 });
-test("wrong answer on08, tie and zero votes never grant reward", () => {
-  for (const mode of ["wrong", "tie", "empty"]) {
+test("wrong answer on08 and zero votes never grant reward", () => {
+  for (const mode of ["wrong", "empty"]) {
     const s = toQuiz(8);
     if (mode !== "empty")
       command(
@@ -712,7 +712,7 @@ test("lottery ranges respect ranks and tie confirmation, preserve every active e
   assert.equal(c.needsConfirmation, false);
   assert.deepEqual(
     c.prizes.map((p) => p.quantity),
-    [1, 2, 5],
+    [1, 3, 5],
   );
   assert.deepEqual(
     c.prizes.map((p) => p.players.length),

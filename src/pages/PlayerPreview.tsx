@@ -7,6 +7,7 @@ import EventSpotlight from "../components/EventSpotlight";
 import StageDice, { stageDiceVisible } from "../components/StageDice";
 import PlayerQuiz from "../components/PlayerQuiz";
 import ScreenAudio from "../components/ScreenAudio";
+import AnniversaryCelebration from "../components/AnniversaryCelebration";
 
 export default function PlayerPreview() {
   const game = useGame("player");
@@ -18,8 +19,8 @@ export default function PlayerPreview() {
   const [fullscreenError, setFullscreenError] = useState("");
   const myTurn = !!s && s.currentTeam === s.me?.team;
   const quiz = s?.quiz;
-  const quizKey = quiz ? `${quiz.id}:${quiz.result ? "result" : "answer"}` : "";
-  const showQuiz = !!quizKey && dismissed !== quizKey && !s?.presentation &&
+  const quizKey = quiz ? `${quiz.ballotId}:${quiz.result ? "result" : "answer"}` : "";
+  const showQuiz = !!quizKey && dismissed !== quizKey && !s?.presentation && !["champion", "finished"].includes(s?.status || "") &&
     ["answering", "quiz_closed", "revealed", "turn_complete"].includes(s?.phase || "");
   useEffect(() => {
     if (!quiz) setDismissed("");
@@ -43,6 +44,7 @@ export default function PlayerPreview() {
   const canRoll = myTurn && team.representativeId === me.id && me.team !== "shanghai" &&
     s.status === "running" && s.phase === "awaiting_dice" && !team.finishOrder;
   const status = s.status === "waiting" ? "等待主持人开场"
+    : s.status === "champion" ? "冠军已诞生，等待颁奖"
     : s.status === "paused" ? "游戏已暂停"
       : s.status === "finished" ? "游戏已结束"
         : s.autoNextAt ? "即将切换下一队"
@@ -65,7 +67,7 @@ export default function PlayerPreview() {
           <Board state={s} offset={game.offset} />
           {stageDiceVisible(s, now) && <StageDice state={s} />}
           <EventSpotlight state={s} now={now} />
-          {s.status === "finished" && <div className="experience-finish">童心之旅圆满结束 · 恭喜{s.rankings[0]?.name}</div>}
+          <AnniversaryCelebration state={s} />
         </div>
       </section>
       <aside className="experience-rail">
@@ -94,10 +96,9 @@ export default function PlayerPreview() {
               {game.pendingCommand === "roll" ? "正在投骰…" : "🎲 投骰子"}
             </button>
           </>}
-          {quiz && !s.presentation && s.phase !== "moving" && <button className="primary experience-answer" onClick={() => setDismissed("")}>
+          {quiz && !["champion", "finished"].includes(s.status) && !s.presentation && s.phase !== "moving" && <button className="primary experience-answer" onClick={() => setDismissed("")}>
             {quiz.result ? "查看答题结果" : !myTurn ? "查看题目与实时进度" : quiz.myAnswer ? `已提交 ${quiz.myAnswer} · ${s.phase === "answering" && s.status === "running" && now < quiz.endsAt ? "修改答案" : "查看作答"}` : "参与本队答题"}
           </button>}
-          {quiz && <p className="experience-quiz-progress">{current.name} · {quiz.submitted} / {quiz.eligible} 人已提交</p>}
           {!canRoll && !quiz && myTurn && me.team === "shanghai" && <p className="experience-waiting">请在现场投掷实体骰子</p>}
           {fullscreenError && <p className="experience-waiting">{fullscreenError}</p>}
         </div>

@@ -13,6 +13,8 @@ import StageDice, { stageDiceVisible } from "../components/StageDice";
 import { playerEntryPath } from "../../shared/siteSettings.js";
 import EventSpotlight from "../components/EventSpotlight";
 import ScreenAudio from "../components/ScreenAudio";
+import AnniversaryCelebration from "../components/AnniversaryCelebration";
+import { votePercentage } from "../../shared/votePercentages.js";
 export default function Screen() {
   const game = useGame("screen"),
     { state: s } = game,
@@ -33,6 +35,7 @@ export default function Screen() {
     quiz = s.quiz,
     showQuiz =
       quiz &&
+      !["champion", "finished"].includes(s.status) &&
       !s.presentation &&
       (["answering", "quiz_closed", "revealed"].includes(s.phase) ||
         (s.phase === "turn_complete" && !!quiz.result)),
@@ -107,8 +110,9 @@ export default function Screen() {
                 <Countdown state={s} offset={game.offset} />
               </div>
               <h2>{quiz.question.text}</h2>
+              {quiz.revote && <p className="quiz-revote"><b>平票加投</b> · 仅{quiz.allowedOptions.join("、")}选项</p>}
               <div className="screen-options">
-                {Object.entries(quiz.question.options).map(([key, text]) => (
+                {Object.entries(quiz.question.options).filter(([key]) => quiz.allowedOptions.includes(key)).map(([key, text]) => (
                   <div
                     className={
                       quiz.result?.correctAnswer === key ? "correct" : ""
@@ -117,7 +121,7 @@ export default function Screen() {
                   >
                     <b>{key}</b>
                     {text}
-                    <small>{quiz.counts[key] || 0}人选择</small>
+                    <small>{votePercentage(quiz.counts, key)}</small>
                   </div>
                 ))}
               </div>
@@ -125,16 +129,16 @@ export default function Screen() {
                 {quiz.result ? (
                   <>
                     <strong>
-                      {quiz.result.correct
+                      {quiz.result.tiedAccepted ? "加投仍平票，按答对奖励！" : quiz.result.correct
                         ? "回答正确！"
                         : quiz.result.tie
-                          ? "最高票并列，未答对"
+                          ? "最高票并列"
                           : quiz.result.submitted === 0
                             ? "无人提交，未答对"
                             : "未答对"}
                     </strong>
                     <span>
-                      本队选择 {quiz.result.majority || "—"} · 正确答案{" "}
+                      本队选择 {quiz.result.majority || (quiz.result.tie ? "加投最高票并列" : "—")} · 正确答案{" "}
                       {quiz.result.correctAnswer}
                     </span>
                     <p>
@@ -149,13 +153,10 @@ export default function Screen() {
                   </>
                 ) : (
                   <>
-                    <b>
-                      {quiz.submitted} / {quiz.eligible} 人已提交
-                    </b>
                     <span>
                       {s.phase === "quiz_closed"
                         ? "等待主持人公布答案"
-                        : `仅${team.name}玩家可答题 · 全员观看实时进度`}
+                        : `本题由${team.name}作答`}
                     </span>
                   </>
                 )}
@@ -164,24 +165,7 @@ export default function Screen() {
           </div>
         )}
         <EventSpotlight state={s} now={now} />
-        {s.status === "finished" && (
-          <div className="finish-overlay">
-            <div className="confetti" />
-            <section>
-              <div className="eyebrow">20年童心不改，反斗精彩继续</div>
-              <h1>每一步，都精彩。</h1>
-              <Ranking state={s} />
-              <div className="prize-ranges">
-                <span>一等奖 ¥500 × 1 · 第1名队伍</span>
-                <span>二等奖 ¥300 × 2 · 前3名队伍</span>
-                <span>三等奖 ¥120 × 5 · 全体员工</span>
-              </div>
-              {s.prizes?.needsConfirmation && (
-                <p>存在并列排名，抽奖资格等待主持人确认。</p>
-              )}
-            </section>
-          </div>
-        )}
+        <AnniversaryCelebration state={s} />
       </div>
     </main>
   );

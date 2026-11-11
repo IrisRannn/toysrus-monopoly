@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNow, type GameConnection } from "../hooks/useGame";
 import { Countdown } from "./Common";
 import type { GameState } from "../types";
+import { votePercentage } from "../../shared/votePercentages.js";
 
 export default function PlayerQuiz({ game, state: s, onSubmitted }: {
   game: GameConnection; state: GameState; onSubmitted?: () => void;
@@ -9,7 +10,7 @@ export default function PlayerQuiz({ game, state: s, onSubmitted }: {
   const [choice, setChoice] = useState("");
   const now = useNow(game.offset);
   const quiz = s.quiz;
-  useEffect(() => setChoice(quiz?.myAnswer || ""), [quiz?.id, quiz?.myAnswer]);
+  useEffect(() => setChoice(quiz?.myAnswer || ""), [quiz?.ballotId, quiz?.myAnswer]);
   if (!quiz) return null;
   const currentTeam = s.teams[s.currentTeam];
   const myTurn = s.currentTeam === s.me?.team;
@@ -23,14 +24,12 @@ export default function PlayerQuiz({ game, state: s, onSubmitted }: {
         <Countdown state={s} offset={game.offset} />
       </div>
       <h2>{quiz.question.text}</h2>
-      <p className="quiz-public-progress" aria-live="polite" aria-atomic="true">
-        {quiz.submitted} / {quiz.eligible} 人已提交
-      </p>
+      {quiz.revote && <p className="quiz-revote"><b>平票加投</b> · 仅{quiz.allowedOptions.join("、")}选项，重新选择后提交</p>}
       <p className="quiz-audience-note">
-        {myTurn ? "轮到本队答题，截止前可以修改答案。" : `本题由${currentTeam.name}作答，你可以观看题目和实时选择人数。`}
+        {myTurn ? "轮到本队答题，截止前可以修改答案。" : `本题由${currentTeam.name}作答。`}
       </p>
       <div className="answer-options">
-        {Object.entries(quiz.question.options).map(([key, text]) => (
+        {Object.entries(quiz.question.options).filter(([key]) => quiz.allowedOptions.includes(key)).map(([key, text]) => (
           <button
             key={key}
             disabled={!canAnswer || game.pendingCommand === "answer"}
@@ -39,8 +38,8 @@ export default function PlayerQuiz({ game, state: s, onSubmitted }: {
           >
             <b>{key}</b>
             <span>{text}</span>
-            <span className="option-votes" aria-label={`${key}选项${quiz.counts[key] || 0}人选择`}>
-              {quiz.counts[key] || 0} 人
+            <span className="option-votes" aria-label={`${key}选项${votePercentage(quiz.counts, key)}`}>
+              {votePercentage(quiz.counts, key)}
             </span>
             {myTurn && choice === key && <span>✓</span>}
           </button>
@@ -85,13 +84,13 @@ export default function PlayerQuiz({ game, state: s, onSubmitted }: {
           }
         >
           <b>
-            {quiz.result.correct
+            {quiz.result.tiedAccepted ? "加投仍平票，按答对奖励！" : quiz.result.correct
               ? "答对了，向前出发！"
               : "未答对，下一次再接再厉。"}
           </b>
           <p>
             正确答案 {quiz.result.correctAnswer} · 本队选择{" "}
-            {quiz.result.majority || "无唯一最多选项"}
+            {quiz.result.majority || (quiz.result.tie ? "加投最高票并列" : "无人提交")}
           </p>
           <p>{quiz.question.explanation}</p>
         </div>

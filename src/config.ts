@@ -15,6 +15,7 @@ export const phaseNames: Record<string, string> = {
   turn_complete: "本队回合完成",
 };
 export const statusNames: Record<string, string> = {
+  champion: "冠军已产生 · 等待颁奖",
   waiting: "等待开场",
   running: "游戏进行中",
   paused: "游戏已暂停",

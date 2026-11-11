@@ -1,0 +1,86 @@
+.anniversary-celebration { position: absolute; inset: 0; z-index: 70; container-type: inline-size; display: flex; flex-direction: column; align-items: stretch; padding: 2.5% 4% 2%; color: #6a2520; background: #fff3d2; overflow: hidden; isolation: isolate; }
+.anniversary-celebration::before { content: ""; position: absolute; inset: 0 0 auto; height: 2.5%; background: repeating-linear-gradient(90deg,#c62b32 0 9%,#f4be46 9% 10%); z-index: -1; }
+.anniversary-celebration::after { content: "✦　✧　　　　　　　✦　　　　　　　✧　✦"; position: absolute; top: 28%; left: 3%; width: 94%; color: #e9b43a; font-size: 3cqw; z-index: -1; white-space: pre-wrap; line-height: 3; opacity: .5; }
+.ceremony-heading { text-align: center; flex-shrink: 0; }
+.ceremony-anniversary { display: block; font-size: 1.05cqw; font-weight: 700; color: #a75531; letter-spacing: .13em; }
+.ceremony-heading h1 { margin: .4cqw 0 .2cqw; color: #bf202c; font-size: 4cqw; font-weight: 950; line-height: 1.2; letter-spacing: .05em; text-shadow: 0 .14cqw #fff,0 .35cqw #e3b14b55; }
+.ceremony-heading > p { margin: .4cqw 0; font-size: 1.3cqw; font-weight: 700; }
+.ceremony-awards { flex: 1; min-height: 0; display: grid; grid-template-columns: 19% 1fr; gap: 2%; align-items: stretch; margin-top: 1%; }
+.ceremony-presenter { position: relative; min-height: 0; display: flex; align-items: flex-end; }
+.ceremony-presenter img { width: 100%; height: 97%; object-fit: contain; object-position: bottom; transform-origin: 50% 94%; animation: geoffreyHello 1.2s ease-out both; }
+.geoffrey-bubble { position: absolute; top: 7%; right: -15%; z-index: 2; padding: .65cqw 1cqw; border-radius: 1.2cqw 1.2cqw 1.2cqw .1cqw; background: #fff; border: .12cqw solid #edc76a; font-size: 1.15cqw; font-weight: 800; white-space: nowrap; transform: rotate(-4deg); }
+.podium-stage { height: 100%; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); grid-template-rows: minmax(0,1fr); align-items: end; gap: 1.2%; padding-top: 3%; border-bottom: .65cqw solid #dcb16b; }
+.podium-entry { height: 100%; min-height: 0; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; text-align: center; animation: podiumArrive .8s ease-out both; }
+.podium-team { display: flex; flex-direction: column; align-items: center; gap: .35cqw; padding-bottom: .8cqw; }
+.podium-team > span { font-size: 3cqw; filter: drop-shadow(0 .2cqw .1cqw #9c66252a); }
+.podium-team strong { color: color-mix(in srgb,var(--team) 60%,#2d221a); font-size: 1.8cqw; line-height: 1.2; white-space: nowrap; }
+.podium-team small { font-size: .95cqw; color: #886044; }
+.podium-gift { position: relative; height: var(--podium-height); min-height: 28%; border-radius: .7cqw .7cqw 0 0; background: var(--team); color: var(--podium-ink); display: flex; align-items: center; flex-direction: column; justify-content: center; gap: 1cqw; padding: .7cqw .3cqw; border-top: .65cqw solid #ffffff55; box-shadow: inset -.5cqw 0 #00000014; }
+.podium-gift::before { content: ""; position: absolute; inset: 0 auto; width: 16%; background: #fff3; }
+.podium-gift > b { position: relative; font-size: 1.5cqw; text-shadow: 0 .1cqw #0003; }
+.podium-gift > span { position: relative; padding: .35cqw; font-size: .8cqw; line-height: 1.6; background: #00000015; border-radius: .3cqw; }
+.podium-mine .podium-team strong::after { content: "★"; padding-left: .2em; color: #d58d00; }
+.ceremony-prizes { display: grid; grid-template-columns: repeat(3,1fr); margin-top: 1.4%; gap: 2%; flex-shrink: 0; }
+.ceremony-prizes > div { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .3cqw 1cqw; padding: .75cqw 1.2cqw; border-top: .2cqw solid #e2b359; background: #fffaf0; border-radius: .4cqw; }
+.ceremony-prizes b { grid-row: span 2; font-size: 1.25cqw; color: #a33328; }
+.ceremony-prizes strong { font-size: 1.55cqw; color: #a33328; }
+.ceremony-prizes em { font-size: 1.1cqw; font-style: normal; }
+.ceremony-prizes span { font-size: .95cqw; color: #916c4c; }
+.player-experience .podium-gift > span { font-size: max(8px,.8cqw); }
+.player-experience .podium-gift > b { font-size: max(10px,1.5cqw); }
+.player-experience .ceremony-prizes b { font-size: max(9px,1.25cqw); }
+.player-experience .ceremony-prizes strong { font-size: max(10px,1.55cqw); }
+.player-experience .ceremony-prizes em,.player-experience .ceremony-prizes span { font-size: max(8px,.95cqw); }
+.ceremony-tie-note { text-align: center; margin: .5cqw 0 0; font-size: .95cqw; color: #956139; flex-shrink: 0; }
+.victory-moment { flex: 1; min-height: 0; display: grid; grid-template-columns: 42% 1fr; gap: 4%; align-items: center; padding: 1% 5% 0; }
+.geoffrey-cheer { width: 100%; height: 100%; min-height: 0; object-fit: contain; transform-origin: 50% 93%; animation: geoffreyVictory 2.6s ease-in-out both; }
+.victory-team { text-align: center; padding-bottom: 4%; animation: podiumArrive .7s .2s ease-out both; }
+.victory-crown { display: block; font-size: 8cqw; line-height: 1.3; }
+.victory-ribbon { display: inline-block; background: #c62b32; padding: .6cqw 2cqw; font-size: 1.5cqw; color: #fff3c4; border-radius: .3cqw; }
+.victory-team h2 { margin: 1cqw 0 .5cqw; font-size: 5.5cqw; font-weight: 950; color: var(--team); }
+.victory-team p { margin: .6cqw 0 2cqw; font-size: 1.8cqw; font-weight: 800; }
+.victory-team small { font-size: 1.1cqw; color: #9a724c; }
+.ceremony-confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 5; }
+.ceremony-confetti i { position: absolute; left: calc(var(--i) * 4.3%); top: -5%; width: .55cqw; height: 1.3cqw; background: var(--paper); animation: ceremonyPaper 3.5s calc(var(--i) * .045s) ease-in both; }
+.screen-stage > .screen-audio { z-index: 100; }
+.champion-notice { margin-bottom: 24px; padding: 22px; display: flex; align-items: center; justify-content: space-between; gap: 16px; background: #fff0c8; border: 1px solid #dfb557; border-radius: 12px; }
+.champion-notice h2 { margin: 0 0 7px; color: #a5282b; }
+.champion-notice p { margin: 0; font-size: 13px; }
+@keyframes geoffreyHello { 0% { opacity: 0; transform: translateY(15%) rotate(-9deg); } 55% { opacity: 1; transform: translateY(-3%) rotate(3deg); } 100% { transform: none; } }
+@keyframes geoffreyVictory { 0% { opacity: 0; transform: translateY(30%) scale(.7) rotate(-7deg); } 24% { opacity: 1; transform: translateY(-5%) scale(1.03) rotate(3deg); } 42% { transform: translateY(0) rotate(-3deg); } 65% { transform: translateY(-3%) rotate(3deg); } 85% { transform: translateY(0) rotate(-2deg); } 100% { transform: none; } }
+@keyframes podiumArrive { from { opacity: 0; transform: translateY(10%); } to { opacity: 1; transform: none; } }
+@keyframes ceremonyPaper { 0% { opacity: 0; transform: translateY(-2cqw) rotate(0); } 10% { opacity: 1; } 90% { opacity: .9; } 100% { opacity: 0; transform: translateY(60cqw) rotate(540deg); } }
+@media (orientation: portrait) {
+  .player-experience .anniversary-celebration { position: fixed; inset: 0; height: 100dvh; padding: 35px 12px 60px; overflow: auto; }
+  .player-experience .ceremony-anniversary { font-size: 11px; }
+  .player-experience .ceremony-heading h1 { font-size: 32px; margin: 10px 0; }
+  .player-experience .ceremony-heading > p { font-size: 14px; }
+  .player-experience .ceremony-awards { min-height: 270px; grid-template-columns: 1fr; margin-top: 15px; }
+  .player-experience .ceremony-presenter { position: absolute; top: 7px; left: 8px; width: 45px; height: 90px; opacity: .8; }
+  .player-experience .geoffrey-bubble { display: none; }
+  .player-experience .podium-stage { padding-top: 15px; gap: 3px; border-bottom-width: 6px; }
+  .player-experience .podium-team { gap: 6px; padding-bottom: 10px; }
+  .player-experience .podium-team > span { font-size: 25px; }
+  .player-experience .podium-team strong { font-size: 12px; }
+  .player-experience .podium-team small { font-size: 9px; }
+  .player-experience .podium-gift { padding: 8px 2px; border-top-width: 5px; border-radius: 6px 6px 0 0; }
+  .player-experience .podium-gift > b { font-size: 12px; }
+  .player-experience .podium-gift > span { font-size: 9px; padding: 4px 1px; }
+  .player-experience .ceremony-prizes { grid-template-columns: 1fr; gap: 6px; margin-top: 14px; }
+  .player-experience .ceremony-prizes > div { padding: 8px 12px; gap: 2px 15px; border-top-width: 2px; border-radius: 5px; }
+  .player-experience .ceremony-prizes b { font-size: 14px; }
+  .player-experience .ceremony-prizes strong { font-size: 18px; }
+  .player-experience .ceremony-prizes em { font-size: 14px; }
+  .player-experience .ceremony-prizes span,.player-experience .ceremony-tie-note { font-size: 11px; }
+  .player-experience .victory-moment { grid-template-columns: 1fr; grid-template-rows: 52% 1fr; padding: 15px 0 0; }
+  .player-experience .victory-crown { font-size: 45px; }
+  .player-experience .victory-ribbon { padding: 6px 18px; font-size: 15px; }
+  .player-experience .victory-team h2 { font-size: 43px; margin: 10px 0; }
+  .player-experience .victory-team p { font-size: 18px; }
+  .player-experience .victory-team small { font-size: 12px; }
+  .player-experience:has(.anniversary-celebration) .player-audio { position: fixed; top: auto; right: 12px; bottom: 10px; z-index: 120; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .anniversary-celebration *, .anniversary-celebration *::before { animation: none !important; }
+  .ceremony-confetti { display: none; }
+}

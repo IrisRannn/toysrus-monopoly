@@ -100,6 +100,16 @@ export class SoundEffects {
     notes.forEach((frequency, index) => this.note(frequency, (flying ? 0.3 : 0) + index * 0.12, 0.24,
       kind === "penalty" ? "triangle" : "sine", 0.32));
   }
+  victory() {
+    this.stop();
+    const melody = [523.25, 523.25, 659.25, 783.99, 1046.5, 987.77, 1046.5];
+    const starts = [0, .18, .4, .64, 1, 1.48, 1.76];
+    melody.forEach((frequency, i) => {
+      this.note(frequency, starts[i], i === melody.length - 1 ? 1.2 : .28, "triangle", .3);
+      this.note(frequency / 2, starts[i], .3, "sine", .16);
+    });
+    [523.25, 659.25, 783.99].forEach((frequency) => this.note(frequency, 1.8, 1.15, "sine", .13));
+  }
   roll() {
     this.diceClick = !this.diceClick;
     this.air(0.055, 1800, 900, 0.65);

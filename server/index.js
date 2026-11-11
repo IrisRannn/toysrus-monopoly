@@ -22,6 +22,7 @@ import {
   upgradeTurnAutomation,
   upgradeBrandAssets,
   upgradeStageAudio,
+  upgradeFirstWinner,
 } from "./lib/engine.js";
 import { importQuestions, COLUMNS, safeCsv } from "./lib/import.js";
 import { audioState } from "../shared/audioSettings.js";
@@ -40,12 +41,14 @@ export async function createApp(options = {}) {
     const automationChanged = upgradeTurnAutomation(preview);
     const brandChanged = upgradeBrandAssets(preview);
     const audioChanged = upgradeStageAudio(preview);
-    if (bankChanged || automationChanged || brandChanged || audioChanged)
+    const winnerChanged = upgradeFirstWinner(preview);
+    if (bankChanged || automationChanged || brandChanged || audioChanged || winnerChanged)
       await store.mutate(code, (s) => {
         seedQuestionBank(s);
         upgradeTurnAutomation(s);
         upgradeBrandAssets(s);
         upgradeStageAudio(s);
+        upgradeFirstWinner(s);
       });
   }
   const app = express(),
