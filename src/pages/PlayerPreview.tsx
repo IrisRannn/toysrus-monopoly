@@ -59,7 +59,7 @@ export default function PlayerPreview() {
   }
   return (
     <main ref={stage} className="player-experience" style={{ "--team-color": team.color } as React.CSSProperties}>
-      <div className="experience-portrait-hint">↻ 横屏看棋盘更清楚，答题时所有人都能观看题目与实时进度</div>
+      <div className="experience-portrait-hint">↻ 横屏看棋盘更清楚</div>
       <section className="experience-board-area" aria-label="实时游戏棋盘">
         <div className="experience-board">
           <Board state={s} offset={game.offset} />
@@ -98,7 +98,7 @@ export default function PlayerPreview() {
             {quiz.result ? "查看答题结果" : !myTurn ? "查看题目与实时进度" : quiz.myAnswer ? `已提交 ${quiz.myAnswer} · ${s.phase === "answering" && s.status === "running" && now < quiz.endsAt ? "修改答案" : "查看作答"}` : "参与本队答题"}
           </button>}
           {quiz && <p className="experience-quiz-progress">{current.name} · {quiz.submitted} / {quiz.eligible} 人已提交</p>}
-          {!canRoll && !quiz && <p className="experience-waiting">{myTurn && me.team === "shanghai" ? "请在现场投掷实体骰子" : "观看棋盘 · 记忆大考验全员可见"}</p>}
+          {!canRoll && !quiz && myTurn && me.team === "shanghai" && <p className="experience-waiting">请在现场投掷实体骰子</p>}
           {fullscreenError && <p className="experience-waiting">{fullscreenError}</p>}
         </div>
         <ScreenAudio state={s} offset={game.offset} surface="player" />

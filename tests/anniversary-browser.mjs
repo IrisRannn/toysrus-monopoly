@@ -143,8 +143,56 @@ try {
   await first.getByRole("button", { name: "更新我的答案", exact: true }).waitFor({ state: "detached" });
   await command("reveal");
   for (const p of players) await waitText(p.locator(".quiz-result"), "正确答案 A");
+  const beforeRestart = await store.read(EVENT_ROOM_CODE);
+  const restart = host.getByRole("button", { name: "重新开始游戏", exact: true });
+  assert.equal(await restart.count(), 1);
+  const gap = await host.evaluate(() => {
+    const panel = document.querySelector(".host-restart-zone");
+    return panel.getBoundingClientRect().top - panel.previousElementSibling.getBoundingClientRect().bottom;
+  });
+  assert(gap >= 90, "restart panel must be separated from ordinary controls");
+  const resetDialogs = async (steps) => {
+    let index = 0;
+    const dialogErrors = [];
+    const handle = async (dialog) => {
+      const step = steps[index++];
+      if (!step || dialog.type() !== step[0]) {
+        dialogErrors.push(dialog.type());
+        await dialog.dismiss();
+      } else if (step[1] === null) await dialog.dismiss();
+      else await dialog.accept(step[1]);
+    };
+    host.on("dialog", handle);
+    try { await restart.click(); }
+    finally { host.off("dialog", handle); }
+    assert.equal(index, steps.length);
+    assert.deepEqual(dialogErrors, []);
+  };
+  await resetDialogs([["prompt", null]]);
+  assert.deepEqual(await store.read(EVENT_ROOM_CODE), beforeRestart);
+  await resetDialogs([["prompt", "000000"], ["alert", ""]]);
+  assert.deepEqual(await store.read(EVENT_ROOM_CODE), beforeRestart);
+  await resetDialogs([["prompt", EVENT_ROOM_CODE], ["confirm", null]]);
+  assert.deepEqual(await store.read(EVENT_ROOM_CODE), beforeRestart);
+  await restart.scrollIntoViewIfNeeded();
+  await host.screenshot({ path: path.join(output, "host-restart-separated.png") });
+  await resetDialogs([["prompt", EVENT_ROOM_CODE], ["confirm", ""]]);
+  await waitText(east.locator(".experience-turn"), "等待主持人开场");
+  const restarted = await store.read(EVENT_ROOM_CODE);
+  assert.equal(restarted.status, "waiting");
+  assert.equal(restarted.quiz, null);
+  assert(Object.values(restarted.teams).every((team) => team.position === 0 && team.finishOrder === null));
+  for (const key of ["players", "questions", "audio", "settings", "representativeRoster"])
+    assert.deepEqual(restarted[key], beforeRestart[key]);
+  assert.equal(await east.getByText(/记忆大考验全员可见|答题时所有人都能观看/).count(), 0);
+  await host.setViewportSize({ width: 390, height: 844 });
+  await restart.scrollIntoViewIfNeeded();
+  assert(await restart.isVisible());
+  assert(await host.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await host.screenshot({ path: path.join(output, "host-restart-mobile.png") });
   assert.deepEqual(errors, []);
   console.log("PASS all-team live question and option counts, private answers, same-team-only votes, replacement votes, cutoff, reveal, landscape and portrait");
+  console.log("PASS separated restart controls, cancel and wrong-room protection, confirmed reset preserving employees, questions and audio, mobile access and clean player copy");
   console.log(`Screenshots: ${output}`);
 } finally {
   for (const context of contexts) await context.close();
