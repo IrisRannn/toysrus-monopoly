@@ -22,6 +22,7 @@ import AudioControls from "../components/AudioControls";
 import type { GameState, Question, Position, TeamId } from "../types";
 import { PREVIEW_ROOM_CODE, playerEntryPath } from "../../shared/siteSettings.js";
 import { votePercentage } from "../../shared/votePercentages.js";
+import { PRIZE_SETTINGS } from "../../shared/prizeSettings.js";
 type Tab = "control" | "players" | "questions" | "events" | "prizes" | "board";
 const tabs: [Tab, string, string][] = [
   ["control", "◈", "现场控制"],
@@ -1197,27 +1198,7 @@ function PrizeManager({
       <section className="panel">
         <h2>周年大奖 · 抽奖资格</h2>
         <div className="prize-summary">
-          <div>
-            <b>一等奖</b>
-            <strong>
-              ¥500 <small>× 1</small>
-            </strong>
-            <span>第1名队伍</span>
-          </div>
-          <div>
-            <b>二等奖</b>
-            <strong>
-              ¥300 <small>× 3</small>
-            </strong>
-            <span>前3名队伍</span>
-          </div>
-          <div>
-            <b>三等奖</b>
-            <strong>
-              ¥120 <small>× 5</small>
-            </strong>
-            <span>全体员工</span>
-          </div>
+          {PRIZE_SETTINGS.map((prize) => <div key={prize.name}><b>{prize.name}</b><strong>{prize.valueLabel} <small>× {prize.quantity}{prize.quantityUnit}</small></strong><span>{prize.rangeLabel}</span></div>)}
         </div>
         {s.status !== "finished" ? (
           <p className="notice">游戏结束后生成候选员工名单，不执行额外抽奖。</p>
