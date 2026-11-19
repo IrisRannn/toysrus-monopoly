@@ -20,6 +20,7 @@
 .podium-gift > b { position: relative; font-size: 1.5cqw; text-shadow: 0 .1cqw #0003; }
 .podium-gift > span { position: relative; padding: .35cqw; font-size: .8cqw; line-height: 1.6; background: #00000015; border-radius: .3cqw; }
 .podium-mine .podium-team strong::after { content: "★"; padding-left: .2em; color: #d58d00; }
+.ceremony-prize-note { margin: .8cqw 0 0; flex-shrink: 0; text-align: center; font-size: 1cqw; color: #916c4c; }
 .ceremony-prizes { display: grid; grid-template-columns: repeat(3,1fr); margin-top: 1.4%; gap: 2%; flex-shrink: 0; }
 .ceremony-prizes > div { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .3cqw 1cqw; padding: .75cqw 1.2cqw; border-top: .2cqw solid #e2b359; background: #fffaf0; border-radius: .4cqw; }
 .ceremony-prizes b { grid-row: span 2; font-size: 1.25cqw; color: #a33328; }
@@ -72,6 +73,7 @@
   .player-experience .ceremony-prizes strong { font-size: 18px; }
   .player-experience .ceremony-prizes em { font-size: 14px; }
   .player-experience .ceremony-prizes span,.player-experience .ceremony-tie-note { font-size: 11px; }
+  .player-experience .ceremony-prize-note { margin-top: 12px; font-size: 11px; }
   .player-experience .victory-moment { grid-template-columns: 1fr; grid-template-rows: 52% 1fr; padding: 15px 0 0; }
   .player-experience .victory-crown { font-size: 45px; }
   .player-experience .victory-ribbon { padding: 6px 18px; font-size: 15px; }

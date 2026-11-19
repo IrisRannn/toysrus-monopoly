@@ -72,7 +72,10 @@ export interface Quiz {
 }
 export interface Prize {
   name: string;
-  value: number;
+  value: number | null;
+  valueLabel: string;
+  quantityUnit: string;
+  rangeLabel: string;
   quantity: number;
   teams: TeamId[];
   players?: { id: string; nickname: string; team: TeamId }[];

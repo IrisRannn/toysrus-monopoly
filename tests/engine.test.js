@@ -712,8 +712,11 @@ test("lottery ranges respect ranks and tie confirmation, preserve every active e
   assert.equal(c.needsConfirmation, false);
   assert.deepEqual(
     c.prizes.map((p) => p.quantity),
-    [1, 3, 5],
+    [1, 3, 80],
   );
+  assert.equal(c.prizes[2].name, "20周年纪念奖品");
+  assert.equal(c.prizes[2].valueLabel, "商品部赞助");
+  assert.equal(c.prizes[2].value, null);
   assert.deepEqual(
     c.prizes.map((p) => p.players.length),
     [1, 3, 5],

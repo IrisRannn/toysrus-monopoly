@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import type { GameState } from "../types";
+import { PRIZE_SETTINGS } from "../../shared/prizeSettings.js";
 import "../celebration.css";
 
 export default function AnniversaryCelebration({ state: s }: { state: GameState }) {
@@ -31,15 +32,14 @@ export default function AnniversaryCelebration({ state: s }: { state: GameState 
               <small>{team.finishOrder ? "率先冲线" : `停在第${team.position}格`}</small>
             </div>
             <div className="podium-gift"><b>{rankLabel(team.rank || 1)}</b>
-              <span title="可参与的抽奖奖项">{s.prizes?.needsConfirmation && (team.rank || 1) > 1 ? "资格待确认" : team.rank === 1 ? "一、二、三等奖" : (team.rank || 1) <= 3 ? "二、三等奖" : "三等奖"}</span>
+              <span title="可参与的抽奖奖项">{s.prizes?.needsConfirmation && (team.rank || 1) > 1 ? "资格待确认" : team.rank === 1 ? "一、二等奖＋纪念奖品" : (team.rank || 1) <= 3 ? "二等奖＋纪念奖品" : "纪念奖品"}</span>
             </div>
           </article>)}
         </div>
       </div>
+      <p className="ceremony-prize-note">最终排名决定抽奖名额，第一名抽奖名额最多</p>
       <div className="ceremony-prizes" aria-label="抽奖奖项与名额">
-        <div><b>一等奖</b><strong>¥500 <em>× 1名</em></strong><span>冠军队伍参与抽奖</span></div>
-        <div><b>二等奖</b><strong>¥300 <em>× 3名</em></strong><span>前三名队伍共享名额</span></div>
-        <div><b>三等奖</b><strong>¥120 <em>× 5名</em></strong><span>全体员工参与抽奖</span></div>
+        {PRIZE_SETTINGS.map((prize) => <div key={prize.name}><b>{prize.name}</b><strong>{prize.valueLabel} <em>× {prize.quantity}{prize.quantityUnit}</em></strong><span>{prize.rangeLabel}</span></div>)}
       </div>
       {s.prizes?.needsConfirmation && <p className="ceremony-tie-note">存在并列排名，相关队伍的抽奖资格等待主持人确认。</p>}
     </> : <div className="victory-moment" role="status">

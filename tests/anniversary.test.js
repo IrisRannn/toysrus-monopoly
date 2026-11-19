@@ -155,7 +155,7 @@ test("answer and manual correction routes also stop on the official first winner
   assert.equal(other.victory.team, "north");
   command(other, host, "end");
   for (let i = 0; i < TEAM_ORDER.length; i++) if (TEAM_ORDER[i] !== "north") other.teams[TEAM_ORDER[i]].position = 10 - i;
-  assert.deepEqual(prizeCandidates(other).prizes.map((prize) => prize.quantity), [1, 3, 5]);
+  assert.deepEqual(prizeCandidates(other).prizes.map((prize) => prize.quantity), [1, 3, 80]);
   assert.equal(tileMessages[9], "天降玩具盲盒");
 });
 

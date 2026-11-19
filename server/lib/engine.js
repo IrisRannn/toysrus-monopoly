@@ -15,6 +15,7 @@ import { DEFAULT_AUDIO, audioState } from "../../shared/audioSettings.js";
 import { BUILTIN_BGM } from "../../shared/builtinBgm.js";
 import { PREVIEW_ROOM_CODE } from "../../shared/siteSettings.js";
 import { ACTIVITY_DICE_WEIGHTS } from "../../shared/diceRules.js";
+import { PRIZE_SETTINGS } from "../../shared/prizeSettings.js";
 import { rollActivityDie } from "./dice.js";
 import {
   BUILTIN_QUESTIONS,
@@ -961,19 +962,10 @@ export function prizeCandidates(s) {
   );
   return {
     needsConfirmation: false,
-    prizes: [
-      ["一等奖", 500, 1, first],
-      ["二等奖", 300, 3, second],
-      ["三等奖", 120, 5, TEAM_ORDER],
-    ].map(([name, value, quantity, teams]) => ({
-      name,
-      value,
-      quantity,
-      teams,
-      players: employees
-        .filter((p) => teams.includes(p.team))
-        .map(({ id, nickname, team }) => ({ id, nickname, team })),
-    })),
+    prizes: PRIZE_SETTINGS.map(({ scope, ...prize }) => {
+      const teams = scope === "first" ? first : scope === "top3" ? second : TEAM_ORDER;
+      return { ...prize, teams, players: employees.filter((p) => teams.includes(p.team)).map(({ id, nickname, team }) => ({ id, nickname, team })) };
+    }),
   };
 }
 export function publicState(s, actor, online = new Set(), shared = null) {

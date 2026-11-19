@@ -239,8 +239,14 @@ try {
     await p.getByLabel("20周年荣耀颁奖台", { exact: true }).waitFor();
     assert.equal(await p.locator(".podium-entry").count(), 5);
     assert((await p.locator(".ceremony-prizes").innerText()).includes("× 3名"));
+    const prizeText = await p.locator(".ceremony-prizes").innerText();
+    assert(prizeText.includes("20周年纪念奖品") && prizeText.includes("商品部赞助") && prizeText.includes("80份"));
+    assert(!prizeText.includes("三等奖") && !prizeText.includes("120"));
   }
   assert.equal((await store.read(EVENT_ROOM_CODE)).status, "finished");
+  const candidateExport = await host.request.get(base + `/api/rooms/${EVENT_ROOM_CODE}/export/prizes`, { headers });
+  assert.equal(candidateExport.status(), 200);
+  assert(/20周年纪念奖品.*商品部赞助.*80/.test(await candidateExport.text()));
   await screen.waitForTimeout(1300);
   for (const p of [screen, east, north]) {
     assert(await p.evaluate(() => {

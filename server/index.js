@@ -472,7 +472,7 @@ export async function createApp(options = {}) {
         const rows = candidates.prizes.flatMap((p) =>
           p.players.map((x) => ({
             prize: p.name,
-            value: p.value,
+            value: p.value ?? p.valueLabel,
             quantity: p.quantity,
             player_id: x.id,
             nickname: x.nickname,
