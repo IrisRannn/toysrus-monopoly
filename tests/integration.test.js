@@ -393,6 +393,76 @@ test("built-in bank upgrades existing rooms once, preserves consumption on resta
   }
 });
 
+test("five saved questions survive refresh and restart and a host-only CSV backup restores a fresh database", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "monopoly-question-backup-"));
+  const file = path.join(directory, "state.sqlite");
+  let app = await fixture(file);
+  let hostSocket;
+  try {
+    const created = (await api(app.url, "/api/rooms", {})).body;
+    const { code, token } = created;
+    hostSocket = io(app.url, { auth: { room: code, role: "host", token } });
+    await waitState(hostSocket, (s) => s.questions?.length === 19);
+    const questions = Array.from({ length: 5 }, (_, i) => ({
+      id: `custom-backup-${i}`, tile: 0, text: `新增题${i + 1}，包含逗号和“引号”`,
+      options: { A: "选项甲", B: "选项乙", C: "选项丙", D: "未知" },
+      answer: "D", explanation: "第一行解析\n第二行解析",
+    }));
+    for (const question of questions) {
+      const ack = await hostSocket.timeout(6000).emitWithAck("command", {
+        type: "saveQuestion", payload: question,
+      });
+      assert.equal(ack.ok, true);
+    }
+    hostSocket.disconnect();
+    // A fresh read and socket model a browser reload without replacing the host.
+    const refreshed = (await api(app.url, `/api/rooms/${code}/state`, null, token)).body;
+    assert.equal(refreshed.questions.length, 24);
+    for (const question of questions)
+      assert.deepEqual(refreshed.questions.find((q) => q.id === question.id), question);
+    hostSocket = io(app.url, { auth: { room: code, role: "host", token } });
+    assert.equal((await waitState(hostSocket, (s) => s.questions?.length === 24)).questions.length, 24);
+    hostSocket.disconnect();
+    await app.close();
+    app = await fixture(file);
+    assert.equal((await api(app.url, `/api/rooms/${code}/state`, null, token)).body.questions.length, 24);
+
+    const route = `/api/rooms/${code}/export/questions`;
+    const exported = await fetch(app.url + route, {
+      headers: { "x-game-role": "host", Authorization: `Bearer ${token}` },
+    });
+    assert.equal(exported.status, 200);
+    assert.match(exported.headers.get("content-disposition"), /question-bank-261218\.csv/);
+    const csv = await exported.text();
+    const parsed = await importQuestions("csv", csv);
+    assert.equal(parsed.length, 24);
+    for (const question of questions) {
+      const restored = parsed.find((q) => q.text === question.text);
+      assert.deepEqual(restored.options, question.options);
+      assert.equal(restored.answer, question.answer);
+      assert.equal(restored.explanation, question.explanation);
+    }
+    assert.equal((await api(app.url, route, null, null, "screen")).status, 403);
+    const player = (await api(app.url, `/api/rooms/${code}/players`, { team: "east", nickname: "备份权限测试" })).body;
+    assert.equal((await api(app.url, route, null, player.token, "player")).status, 403);
+
+    await app.close();
+    app = await fixture(path.join(directory, "fresh.sqlite"));
+    const fresh = (await api(app.url, "/api/rooms", {})).body;
+    const imported = await api(app.url, `/api/rooms/${fresh.code}/commands`, {
+      type: "importQuestions", payload: { format: "csv", content: csv },
+    }, fresh.token);
+    assert.equal(imported.status, 200);
+    const restored = (await api(app.url, `/api/rooms/${fresh.code}/state`, null, fresh.token)).body;
+    assert.equal(restored.questions.length, 24);
+    assert(questions.every((q) => restored.questions.some((r) => r.text === q.text)));
+  } finally {
+    hostSocket?.disconnect();
+    await app.close();
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("ordinary turn handoff survives restart, pauses safely and broadcasts without a host next command", async () => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "monopoly-auto-next-"));
   const file = path.join(directory, "state.sqlite");
