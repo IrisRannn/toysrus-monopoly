@@ -894,6 +894,7 @@ function QuestionManager({
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            setMessage("");
             void game
               .cmd("saveQuestion", { ...draft, id: draft.id || undefined })
               .then((ok) => {
@@ -983,6 +984,15 @@ function QuestionManager({
         <div className="section-heading">
           <h2>批量导入</h2>
           <div className="button-row">
+            <button
+              className="secondary"
+              onClick={() => {
+                void download(s.code, "export/questions", `question-bank-${s.code}.csv`)
+                  .catch((e: Error) => game.setError(e.message));
+              }}
+            >
+              下载当前题库备份 ↓
+            </button>
             <button className="secondary" onClick={() => void template("csv")}>
               CSV 模板 ↓
             </button>
@@ -1007,6 +1017,7 @@ function QuestionManager({
           列名：tile, question, A, B, C, D, answer,
           explanation。tile 填0表示所有答题格共用，也可填4/8/12/15/16指定格子。
           一次最多1000题，相同问题自动跳过；任何一行错误将整批拒绝。
+          题目更新完成后可下载当前题库备份，需要时通过导入恢复。
         </p>
       </section>
       <section className="panel">
