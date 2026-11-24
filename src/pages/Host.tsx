@@ -19,6 +19,7 @@ import { TILES, tileName, phaseNames } from "../config";
 import Board from "../components/Board";
 import Dice from "../components/Dice";
 import AudioControls from "../components/AudioControls";
+import RepresentativeSelector from "../components/RepresentativeSelector";
 import type { GameState, Question, Position, TeamId } from "../types";
 import { PREVIEW_ROOM_CODE, playerEntryPath } from "../../shared/siteSettings.js";
 import { votePercentage } from "../../shared/votePercentages.js";
@@ -311,30 +312,10 @@ export default function Host() {
                     <h2>指定本回合投骰代表</h2>
                     <span className="muted">也允许本队员工先到先得申请</span>
                   </div>
-                  <div className="representative-choices">
-                    {activePlayers
-                      .filter((p) => p.team === team.id)
-                      .map((p) => (
-                        <button
-                          className={
-                            team.representativeId === p.id ? "selected" : ""
-                          }
-                          key={p.id}
-                          disabled={disabled}
-                          onClick={() =>
-                            void game.cmd("assignRepresentative", {
-                              playerId: p.id,
-                            })
-                          }
-                        >
-                          {p.nickname}
-                          <span>{p.online ? "● 在线" : "○ 离线"}</span>
-                        </button>
-                      ))}
-                    {!activePlayers.some((p) => p.team === team.id) && (
-                      <p className="muted">本队还没有员工加入。</p>
-                    )}
-                  </div>
+                  <RepresentativeSelector key={team.id} team={team} players={activePlayers}
+                    selectedId={team.representativeId} disabled={disabled} allowClear={false}
+                    selectionLabel={`${team.name}本回合投骰代表`}
+                    onSelect={(playerId) => void game.cmd("assignRepresentative", { playerId })} />
                 </section>
               )}
             {(s.phase === "quiz_ready" || s.quiz) && (
@@ -653,17 +634,14 @@ function RepresentativeRoster({ game, state: s }: { game: GameConnection; state:
     <div className="representative-roster">
       {s.order.filter((id) => id !== "shanghai").map((id) => {
         const locked = id === s.currentTeam && s.status !== "waiting" && !["awaiting_dice", "turn_complete"].includes(s.phase);
-        const members = (s.players || []).filter((p) => p.team === id && !p.removed);
-        return <label key={id}>
-          <span style={{ color: s.teams[id].color }}>{s.teams[id].name}</span>
-          <select aria-label={`${s.teams[id].name}固定投骰代表`} value={s.representativeRoster?.[id] || ""}
-            disabled={game.busy || !game.connected || locked}
-            onChange={(e) => void game.cmd("setTeamRepresentative", { team: id, playerId: e.target.value || null })}>
-            <option value="">请选择已加入的员工</option>
-            {members.map((p) => <option key={p.id} value={p.id}>{p.nickname}{p.online ? " · 在线" : " · 离线"}</option>)}
-          </select>
-          <small>{locked ? "本队回合结束后可更换" : members.length ? "核对员工后指定；可随时清空" : "请先让本队代表加入年会房间"}</small>
-        </label>;
+        return <div className="representative-team" key={id}>
+          <h3 style={{ color: s.teams[id].color }}>{s.teams[id].name}</h3>
+          <RepresentativeSelector team={s.teams[id]} players={s.players || []}
+            selectedId={s.representativeRoster?.[id]} disabled={game.busy || !game.connected || locked}
+            selectionLabel={`${s.teams[id].name}固定投骰代表`}
+            onSelect={(playerId) => void game.cmd("setTeamRepresentative", { team: id, playerId: playerId || null })} />
+          {locked && <small>本队回合结束后可更换</small>}
+        </div>;
       })}
     </div>
     <p className="muted">员工无法自行抢代表。上海SSC继续现场实体投骰，由主持人录入点数。</p>
