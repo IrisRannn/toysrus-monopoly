@@ -1,0 +1,107 @@
+name: 云端300人压测（你操作主持人）
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: toysrus-formal-room-player-load-test
+  cancel-in-progress: false
+
+jobs:
+  cloud-players:
+    name: 云端模拟300名玩家
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      BASE_URL: https://toysrus-monopoly.onrender.com
+      ROOM_CODE: '261218'
+      PLAYERS: '300'
+      RAMP_SECONDS: '120'
+      HOLD_SECONDS: '1800'
+      MODE: game
+      TEAM_MODE: balanced
+      AUTO_ROLL: 'true'
+      FULL_GAME: 'true'
+      FIRST_QUIZ_TIE: 'true'
+      RUN_ID: c${{ github.run_id }}a${{ github.run_attempt }}
+      OUTPUT_DIR: artifacts/load-tests/cloud-manual-300
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: 检查房间是否等待开始且没有旧玩家
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const base = process.env.BASE_URL;
+          const room = process.env.ROOM_CODE;
+          for (const route of ['/api/health', `/api/rooms/${room}/state`]) {
+            const response = await fetch(base + route, { signal: AbortSignal.timeout(20000) });
+            const state = await response.json();
+            if (!response.ok) throw new Error(`请求失败：HTTP ${response.status}，${state.error || route}。请先进入主持人控制台。`);
+            if (route === '/api/health' && state.ok !== true) throw new Error('游戏服务尚未就绪');
+            if (route.endsWith('/state')) {
+              const members = Object.values(state.teams).reduce((total, team) => total + team.members, 0);
+              console.log(JSON.stringify({ room, status: state.status, online: state.onlineCount, members }));
+              if (state.status !== 'waiting' || state.onlineCount || members) throw new Error('房间必须等待开始且没有旧玩家。本任务不会接管主持人、清空玩家或重开游戏。');
+            }
+          }
+          console.log('检查通过。随后由云端加入300名玩家，主持人由你操作。');
+          NODE
+      - name: 准备k6
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/tru-k6"
+          curl -fsSL --connect-timeout 15 --max-time 90 --retry 2 https://github.com/grafana/k6/releases/download/v2.4.0/k6-v2.4.0-linux-amd64.tar.gz -o "$RUNNER_TEMP/tru-k6/k6.tar.gz"
+          tar -xzf "$RUNNER_TEMP/tru-k6/k6.tar.gz" -C "$RUNNER_TEMP/tru-k6"
+          echo "K6_BIN=$RUNNER_TEMP/tru-k6/k6-v2.4.0-linux-amd64/k6" >> "$GITHUB_ENV"
+      - name: 玩家陆续加入并等待你主持游戏
+        shell: bash
+        run: |
+          mkdir -p "$OUTPUT_DIR"
+          printf '你操作主持人：%s/host?room=%s\n' "$BASE_URL" "$ROOM_CODE"
+          printf '观看大屏：%s/screen?room=%s\n' "$BASE_URL" "$ROOM_CODE"
+          printf '目标300人，120秒内陆续加入；达到300人在线后再开始游戏。\n'
+          "$K6_BIN" run --summary-export="$OUTPUT_DIR/k6-summary.json" \
+            -e "BASE_URL=$BASE_URL" -e "ROOM_CODE=$ROOM_CODE" \
+            -e "PLAYERS=$PLAYERS" -e "RAMP_SECONDS=$RAMP_SECONDS" \
+            -e "HOLD_SECONDS=$HOLD_SECONDS" -e "RUN_ID=$RUN_ID" \
+            -e MODE=game -e TEAM_MODE=balanced -e AUTO_ROLL=true \
+            -e FULL_GAME=true -e FIRST_QUIZ_TIE=true \
+            scripts/k6-players.js 2>&1 | tee -i "$OUTPUT_DIR/k6.log"
+      - name: 显示结果摘要
+        if: always()
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const file = process.env.OUTPUT_DIR + '/k6-summary.json';
+          if (!fs.existsSync(file)) {
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, '本次尚未生成完整k6结果。请查看任务日志；不能视为压测通过。\n');
+            process.exit(0);
+          }
+          const { metrics: m } = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const rate = (key) => `${m[key]?.passes ?? 0}/${(m[key]?.passes ?? 0) + (m[key]?.fails ?? 0)}`;
+          const rows = [
+            ['玩家创建成功', rate('player_join_ok')],
+            ['实时连接认证成功', rate('socket_login_ok')],
+            ['正常完成会话', rate('session_ok')],
+            ['看到开场 / 最终结算', `${m.game_starts_seen?.count ?? 0} / ${m.game_endings_seen?.count ?? 0}`],
+            ['非计划断线', m.unexpected_disconnects?.count ?? 0],
+            ['答案发送 / 接受', `${m.answers_sent?.count ?? 0} / ${m.answers_accepted?.count ?? 0}`],
+            ['答题确认p95（毫秒）', m.answer_ack_ms?.['p(95)'] ?? '无数据'],
+          ];
+          const text = '| 项目 | 结果 |\n|---|---|\n' + rows.map(([key, value]) => `| ${key} | ${value} |`).join('\n') + '\n\n目标为300名玩家；任务数、加入名单数都不等于实时在线人数。请结合k6阈值与完整流程判断。\n';
+          console.log(text);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, text);
+          NODE
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: cloud-manual-300-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/load-tests/cloud-manual-300/
+          retention-days: 1
+          if-no-files-found: warn
