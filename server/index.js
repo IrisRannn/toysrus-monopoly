@@ -456,6 +456,20 @@ export async function createApp(options = {}) {
       const actor = await authHttp(req);
       if (actor.role !== "host") throw new GameError("仅主持人可导出", 403);
       const s = await store.read(req.params.code);
+      if (req.params.kind === "questions") {
+        const rows = s.questions.map((q) => ({
+          tile: q.tile,
+          question: q.text,
+          ...q.options,
+          answer: q.answer,
+          explanation: q.explanation,
+        }));
+        res
+          .attachment(`question-bank-${s.code}.csv`)
+          .type("text/csv")
+          .send(safeCsv(rows, COLUMNS));
+        return;
+      }
       if (req.params.kind === "positions") {
         res.attachment("tilePositions.json").json(s.positions);
         return;
