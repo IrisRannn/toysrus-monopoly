@@ -215,6 +215,13 @@ export async function createStore({
     durableBytes = bytes;
   };
   await persist();
+  // Readers see only states whose file sync and rename have completed. Waiting
+  // for the whole write queue to drain can starve login and broadcasts while
+  // players keep joining; reading the mutable database can expose a write that
+  // later fails. Keep the last durable JSON for each room instead.
+  const committedRooms = new Map(
+    db.exec("SELECT code, state FROM game_rooms")[0]?.values ?? [],
+  );
   const read = (code) => {
     const stmt = db.prepare("SELECT state FROM game_rooms WHERE code=?");
     try {
@@ -227,17 +234,10 @@ export async function createStore({
   return {
     kind: "sqlite",
     read: async (code) => {
-      await waitForWrites();
-      return read(code);
+      const state = committedRooms.get(code);
+      return state === undefined ? null : decoded(state);
     },
-    codes: async () => {
-      await waitForWrites();
-      return (
-        db
-          .exec("SELECT code FROM game_rooms")[0]
-          ?.values.map(([code]) => code) ?? []
-      );
-    },
+    codes: async () => [...committedRooms.keys()],
     mutate(code, fn) {
       // One SQLite file needs one write queue even when different rooms write.
       // Filesystem I/O yields to the event loop; acknowledgement still waits for
@@ -250,10 +250,11 @@ export async function createStore({
         if (!next) throw new GameError("房间不存在", 404);
         next.version = (before?.version ?? 0) + 1;
         try {
+          const stateJson = encoded(next);
           db.run("BEGIN IMMEDIATE");
           db.run(
             "INSERT INTO game_rooms(code,version,state) VALUES(?,?,?) ON CONFLICT(code) DO UPDATE SET version=excluded.version,state=excluded.state",
-            [code, next.version, encoded(next)],
+            [code, next.version, stateJson],
           );
           for (const [table, id, row] of differences(next, before)) {
             if (row === null)
@@ -280,6 +281,7 @@ export async function createStore({
           }
           db.run("COMMIT");
           await persist();
+          committedRooms.set(code, stateJson);
         } catch (e) {
           try {
             db.run("ROLLBACK");
