@@ -1,8 +1,6 @@
 name: One-off 200-player complete game load test
 
 on:
-  push:
-    branches: [codex/load-test-200-20261124]
   workflow_dispatch:
 
 permissions:
@@ -10,7 +8,7 @@ permissions:
 
 concurrency:
   group: toysrus-200-player-load-test
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   load-test:

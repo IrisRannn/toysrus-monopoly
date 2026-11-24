@@ -24,7 +24,7 @@ node scripts/k6-full-game.mjs
 
 其他电脑可设置自己的`K6_BIN`，或让`k6`在PATH中。浏览器观察是可选的；未设置`PLAYWRIGHT_MODULE`时仍会运行协议压测，但不生成大屏截图和帧间隔记录。脚本不安装浏览器依赖、不修改Render套餐，也不部署代码。
 
-`.github/workflows/load-test-200.yml`提供同一流程的GitHub云端运行方式。仅推送指定测试分支或手动触发时运行，不部署游戏。云端与本机发起的结果必须分别记录：云端通过不能证明中国员工访问链路已通过。
+`.github/workflows/load-test-200.yml`提供同一流程的GitHub云端运行方式，只在手动触发时运行，不部署游戏。云端与本机发起的结果必须分别记录：云端通过不能证明中国员工访问链路已通过。
 
 ## 自动流程
 
@@ -54,6 +54,8 @@ node scripts/k6-full-game.mjs
 | `timeline.jsonl` | 带UTC时间的关键步骤，便于与Render监控对照 |
 | `browser.json` | 单个真实大屏浏览器的帧间隔、长任务、页面报错和网络失败 |
 | `quiz.png`、`victory.png`、`awards.png` | 答题、冠军和最终五队颁奖画面，有浏览器观察时生成 |
+
+运行`node scripts/k6-report.mjs 结果目录`可生成中文`report.html`。如已补充`render-metrics.json`或`external-observer.json`，会一并显示服务器监控及另一访问路径的旁观数据。退出码99表示预设性能阈值有未达标项，不等同于游戏未完成；需查看具体指标。
 
 建议初筛标准：200人全部看到开场与结算、全程保持在线，非计划掉线为0；投骰/答题95%的确认小于1秒，95%的答案可见延迟小于1.5秒，连接认证95%小于3秒。脚本也检查五队结算数据和加投覆盖。完整游戏完成与性能指标通过分别记录；任一关键条件不满足，`passed`为false。
 
