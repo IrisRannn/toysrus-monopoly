@@ -1,0 +1,63 @@
+name: One-off 300-player complete game load test
+
+on:
+  push:
+    branches: ['codex/load-test-300-20261124']
+    paths: ['.github/workflows/load-test-300.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: toysrus-300-player-load-test
+  cancel-in-progress: false
+
+jobs:
+  load-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - run: npm ci
+      - name: Install isolated load-test tools
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/tru-k6"
+          curl -fsSL --connect-timeout 15 --max-time 90 --retry 2 https://github.com/grafana/k6/releases/download/v2.4.0/k6-v2.4.0-linux-amd64.tar.gz -o "$RUNNER_TEMP/tru-k6/k6.tar.gz"
+          tar -xzf "$RUNNER_TEMP/tru-k6/k6.tar.gz" -C "$RUNNER_TEMP/tru-k6"
+          echo "K6_BIN=$RUNNER_TEMP/tru-k6/k6-v2.4.0-linux-amd64/k6" >> "$GITHUB_ENV"
+          npm install --prefix "$RUNNER_TEMP/tru-browser" --no-save --package-lock=false playwright
+          echo "PLAYWRIGHT_MODULE=$RUNNER_TEMP/tru-browser/node_modules/playwright/index.mjs" >> "$GITHUB_ENV"
+          echo "BROWSER_EXECUTABLE=$(command -v google-chrome)" >> "$GITHUB_ENV"
+      - name: Run 300 players through the formal game
+        env:
+          BASE_URL: https://toysrus-monopoly.onrender.com
+          ROOM_CODE: '261218'
+          ALLOW_FORMAL_ROOM: 'true'
+          PLAYERS: '300'
+          RAMP_SECONDS: '30'
+          ANSWER_SECONDS: '30'
+          MAX_SECONDS: '1300'
+          OUTPUT_DIR: artifacts/load-tests/cloud-300
+        run: node scripts/k6-full-game.mjs
+      - name: Render result report
+        if: always()
+        run: |
+          if test -f artifacts/load-tests/cloud-300/report.json; then
+            node scripts/k6-report.mjs artifacts/load-tests/cloud-300
+            cat artifacts/load-tests/cloud-300/report.json
+          fi
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: cloud-300-full-game-results
+          path: artifacts/load-tests/cloud-300/
+          retention-days: 3
+          if-no-files-found: warn
