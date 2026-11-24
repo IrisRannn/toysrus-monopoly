@@ -92,3 +92,55 @@ test("SQLite reads the last durable state while a newer write is awaiting disk s
     await fs.rm(directory, { recursive: true, force: true });
   }
 });
+
+test("SQLite restores a staged backup once and keeps the previous database for rollback", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "monopoly-restore-"));
+  const source = path.join(directory, "backup.sqlite");
+  const file = path.join(directory, "state.sqlite");
+  let store = await createStore({ databaseUrl: null, file: source });
+  try {
+    await store.mutate("261218", () => ({ state: newRoom("261218", "original-host") }));
+    await store.mutate("261218", (s) => {
+      s.questions.push({ id: "custom-restored", tile: 0, text: "备份中的自定义题目", options: { A: "甲", B: "乙", C: "丙", D: "丁" }, answer: "B", explanation: "保留答案" });
+      s.teams.east.position = 9;
+    });
+    const expected = await store.read("261218");
+    await store.close();
+    store = await createStore({ databaseUrl: null, file });
+    await store.mutate("261218", () => ({ state: newRoom("261218", "new-host") }));
+    await store.close();
+    const previous = await fs.readFile(file);
+    await fs.copyFile(source, file + ".restore");
+
+    store = await createStore({ databaseUrl: null, file });
+    assert.deepEqual(await store.read("261218"), expected);
+    await assert.rejects(fs.access(file + ".restore"), { code: "ENOENT" });
+    const backups = (await fs.readdir(directory)).filter((name) => name.startsWith("state.sqlite.before-restore-"));
+    assert.equal(backups.length, 1);
+    assert.deepEqual(await fs.readFile(path.join(directory, backups[0])), previous);
+    await store.mutate("261218", (s) => { s.round = 4; });
+    await store.close();
+    store = await createStore({ databaseUrl: null, file });
+    assert.equal((await store.read("261218")).round, 4, "A consumed backup must not restore again");
+  } finally {
+    await store.close();
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("SQLite refuses an invalid staged restore without changing the current database", async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), "monopoly-invalid-restore-"));
+  const file = path.join(directory, "state.sqlite");
+  const store = await createStore({ databaseUrl: null, file });
+  try {
+    await store.mutate("261218", () => ({ state: newRoom("261218", "host") }));
+    await store.close();
+    const previous = await fs.readFile(file);
+    await fs.writeFile(file + ".restore", "This is not a SQLite backup");
+    await assert.rejects(createStore({ databaseUrl: null, file }), /备份格式无效/);
+    assert.deepEqual(await fs.readFile(file), previous);
+    await fs.access(file + ".restore");
+  } finally {
+    await fs.rm(directory, { recursive: true, force: true });
+  }
+});

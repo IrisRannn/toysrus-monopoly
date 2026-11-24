@@ -2,10 +2,15 @@ services:
   - type: web
     name: toysrus-monopoly
     runtime: node
-    plan: free
-    buildCommand: npm ci --include=dev --registry=https://registry.npmjs.org --replace-registry-host=registry.npmmirror.com && npm run build
-    startCommand: npm start
-    healthCheckPath: /api/health
-    envVars:
-      - key: NODE_VERSION
-        value: 20.20.2
+    repo: https://github.com/IrisRannn/toysrus-monopoly
+    branch: main
+    region: oregon
+    plan: 4c-8g
+    numInstances: 1
+    buildCommand: npm install && npm run build
+    startCommand: yarn start
+    autoDeployTrigger: commit
+    disk:
+      name: game-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1

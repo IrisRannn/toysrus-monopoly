@@ -188,6 +188,33 @@ export async function createStore({
   const SQL = await initSqlJs(),
     absolute = path.resolve(file);
   fs.mkdirSync(path.dirname(absolute), { recursive: true });
+  // An operator can stage a complete backup beside the database and restart.
+  // Validate it before touching the live file; consume the restore only once.
+  const pendingRestore = absolute + ".restore";
+  if (fs.existsSync(pendingRestore)) {
+    const bytes = fs.readFileSync(pendingRestore);
+    if (bytes.subarray(0, 16).toString() !== "SQLite format 3\0")
+      throw new Error("数据库备份格式无效，原数据库未修改");
+    const restored = new SQL.Database(bytes);
+    try {
+      if (restored.exec("PRAGMA integrity_check")[0]?.values[0]?.[0] !== "ok")
+        throw new Error("数据库备份完整性检查失败，原数据库未修改");
+      const tables = new Set(restored.exec("SELECT name FROM sqlite_master WHERE type='table'")[0]?.values.map(([name]) => name));
+      if (!["game_rooms", ...projections].every((name) => tables.has(name)))
+        throw new Error("数据库备份缺少游戏数据表，原数据库未修改");
+      for (const [code, version, json] of restored.exec("SELECT code, version, state FROM game_rooms")[0]?.values || []) {
+        const state = decoded(json);
+        if (state?.code !== code || state.version !== version || !state.teams || !state.players || !Array.isArray(state.questions) || !Array.isArray(state.events))
+          throw new Error("数据库备份包含无效房间，原数据库未修改");
+      }
+    } finally {
+      restored.close();
+    }
+    if (fs.existsSync(absolute))
+      fs.copyFileSync(absolute, `${absolute}.before-restore-${Date.now()}`, fs.constants.COPYFILE_EXCL);
+    fs.renameSync(pendingRestore, absolute);
+    console.log("已从经过验证的备份恢复SQLite数据");
+  }
   let db = new SQL.Database(
     fs.existsSync(absolute) ? fs.readFileSync(absolute) : undefined,
   );
