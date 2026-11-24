@@ -10,11 +10,11 @@ permissions:
 
 concurrency:
   group: toysrus-200-player-load-test
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   load-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
@@ -29,12 +29,12 @@ jobs:
         shell: bash
         run: |
           mkdir -p "$RUNNER_TEMP/tru-k6"
-          curl -fsSL --retry 3 https://github.com/grafana/k6/releases/download/v2.4.0/k6-v2.4.0-linux-amd64.tar.gz -o "$RUNNER_TEMP/tru-k6/k6.tar.gz"
+          curl -fsSL --connect-timeout 15 --max-time 90 --retry 2 https://github.com/grafana/k6/releases/download/v2.4.0/k6-v2.4.0-linux-amd64.tar.gz -o "$RUNNER_TEMP/tru-k6/k6.tar.gz"
           tar -xzf "$RUNNER_TEMP/tru-k6/k6.tar.gz" -C "$RUNNER_TEMP/tru-k6"
           echo "K6_BIN=$RUNNER_TEMP/tru-k6/k6-v2.4.0-linux-amd64/k6" >> "$GITHUB_ENV"
           npm install --prefix "$RUNNER_TEMP/tru-browser" --no-save --package-lock=false playwright
-          "$RUNNER_TEMP/tru-browser/node_modules/.bin/playwright" install --with-deps chromium
           echo "PLAYWRIGHT_MODULE=$RUNNER_TEMP/tru-browser/node_modules/playwright/index.mjs" >> "$GITHUB_ENV"
+          echo "BROWSER_EXECUTABLE=$(command -v google-chrome)" >> "$GITHUB_ENV"
       - name: Run 200 players through the formal game
         env:
           BASE_URL: https://toysrus-monopoly.onrender.com
