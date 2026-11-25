@@ -37,7 +37,7 @@ export default function Screen() {
       quiz &&
       !["champion", "finished"].includes(s.status) &&
       !s.presentation &&
-      (["answering", "quiz_closed", "revealed"].includes(s.phase) ||
+      (quiz.replacementPending || ["answering", "quiz_closed", "revealed"].includes(s.phase) ||
         (s.phase === "turn_complete" && !!quiz.result)),
     latest = s.events[s.events.length - 1],
     tile = TILES.find((t) => t.id === s.lastTile),
@@ -109,10 +109,10 @@ export default function Screen() {
                 <span className="eyebrow">{team.name} · 全队答题</span>
                 <Countdown state={s} offset={game.offset} />
               </div>
-              <h2>{quiz.question.text}</h2>
-              {quiz.revote && <p className="quiz-revote"><b>平票加投</b> · 仅{quiz.allowedOptions.join("、")}选项</p>}
+              <h2>{quiz.replacementPending ? "平票换题 · 等待主持人补充新题并开始加赛" : quiz.question.text}</h2>
+              {quiz.revote && !quiz.replacementPending && <p className="quiz-revote"><b>平票换题</b> · 全新题目，四个选项重新作答；再次平票不前进。</p>}
               <div className="screen-options">
-                {Object.entries(quiz.question.options).filter(([key]) => quiz.allowedOptions.includes(key)).map(([key, text]) => (
+                {!quiz.replacementPending && Object.entries(quiz.question.options).filter(([key]) => quiz.allowedOptions.includes(key)).map(([key, text]) => (
                   <div
                     className={
                       quiz.result?.correctAnswer === key ? "correct" : ""
@@ -129,16 +129,16 @@ export default function Screen() {
                 {quiz.result ? (
                   <>
                     <strong>
-                      {quiz.result.tiedAccepted ? "加投仍平票，按答对奖励！" : quiz.result.correct
+                      {quiz.result.correct
                         ? "回答正确！"
                         : quiz.result.tie
-                          ? "最高票并列"
+                          ? "最高票并列，原地不动"
                           : quiz.result.submitted === 0
                             ? "无人提交，未答对"
                             : "未答对"}
                     </strong>
                     <span>
-                      本队选择 {quiz.result.majority || (quiz.result.tie ? "加投最高票并列" : "—")} · 正确答案{" "}
+                      本队选择 {quiz.result.majority || (quiz.result.tie ? "最高票并列" : "—")} · 正确答案{" "}
                       {quiz.result.correctAnswer}
                     </span>
                     <p>
