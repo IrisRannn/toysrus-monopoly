@@ -21,7 +21,7 @@ export default function PlayerPreview() {
   const quiz = s?.quiz;
   const quizKey = quiz ? `${quiz.ballotId}:${quiz.result ? "result" : "answer"}` : "";
   const showQuiz = !!quizKey && dismissed !== quizKey && !s?.presentation && !["champion", "finished"].includes(s?.status || "") &&
-    ["answering", "quiz_closed", "revealed", "turn_complete"].includes(s?.phase || "");
+    (!!quiz?.replacementPending || ["answering", "quiz_closed", "revealed", "turn_complete"].includes(s?.phase || ""));
   useEffect(() => {
     if (!quiz) setDismissed("");
   }, [quiz?.id]);

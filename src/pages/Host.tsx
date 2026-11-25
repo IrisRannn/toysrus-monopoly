@@ -662,7 +662,7 @@ function QuizControl({
         !s.usedQuestions?.includes(q.id),
     ),
     quiz = s.quiz;
-  useEffect(() => setSelected(""), [s.turnId]);
+  useEffect(() => setSelected(""), [s.turnId, quiz?.replacementPending]);
   return (
     <section className="panel host-quiz">
       <div className="section-heading">
@@ -678,6 +678,7 @@ function QuizControl({
       </div>
       {s.phase === "quiz_ready" ? (
         <>
+          {quiz?.replacementPending && <p className="notice">正确答案位于并列最高票中，需要换一道全新题目。请补充新题后开始加赛；加赛再次平票不前进。</p>}
           <div className="form-row">
             <label>
               选择题目
@@ -719,7 +720,7 @@ function QuizControl({
               })
             }
           >
-            开始答题
+            {quiz?.replacementPending ? "开始换题加赛" : "开始答题"}
           </button>
         </>
       ) : (
@@ -741,7 +742,7 @@ function QuizControl({
                 </div>
               ))}
             </div>
-            {quiz.revote && <p className="quiz-revote">平票加投 · 仅{quiz.allowedOptions.join("、")}选项 · 15秒</p>}
+            {quiz.revote && <p className="quiz-revote">平票换题 · 四个选项重新作答，再次平票不前进。</p>}
             <p>正确答案仅主持人可见：<b>{quiz.question.answer}</b></p>
             <details className="answer-details">
               <summary>查看员工答题明细</summary>
@@ -761,7 +762,7 @@ function QuizControl({
                 }
                 onClick={() => void game.cmd("closeQuiz")}
               >
-                {quiz.revote ? "提前结束加投" : "提前结束答题"}
+                {quiz.revote ? "提前结束加赛" : "提前结束答题"}
               </button>
               <button
                 className="primary"
@@ -786,8 +787,8 @@ function QuizControl({
             </div>
             {quiz.result && (
               <p className="notice">
-                最终选择：{quiz.result.majority || (quiz.result.tie ? "加投最高票并列" : "无人提交")} ·{" "}
-                {quiz.result.tiedAccepted ? "加投仍平票，按答对奖励" : quiz.result.correct
+                最终选择：{quiz.result.majority || (quiz.result.tie ? "最高票并列" : "无人提交")} ·{" "}
+                {quiz.result.correct
                   ? "答对，执行格子前进效果"
                   : "未答对，原地不动"}
                 。{quiz.question.explanation}

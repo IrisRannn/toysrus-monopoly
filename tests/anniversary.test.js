@@ -15,7 +15,9 @@ function quiz() {
   s.status = "running";
   s.phase = "quiz_ready";
   s.teams.east.position = 4;
+  s.questions = [];
   command(s, host, "saveQuestion", { id: "tie-test", tile: 0, text: "测试", options: { A: "甲", B: "乙", C: "丙", D: "丁" }, answer: "A" }, now);
+  command(s, host, "saveQuestion", { id: "replacement-test", tile: 0, text: "全新的加赛题", options: { A: "新甲", B: "新乙", C: "新丙", D: "新丁" }, answer: "C" }, now);
   command(s, host, "startQuiz", { questionId: "tie-test", seconds: 30 }, now);
   return s;
 }
@@ -23,55 +25,71 @@ function vote(s, values, time = now + 1) {
   values.forEach((option, i) => command(s, player(`p${i}`), "answer", { option }, time));
 }
 
-test("2, 3 and 4 top options each cause only one private, restricted 15-second revote", () => {
+test("a 2-, 3- or 4-way top tie containing the answer starts one fresh four-option question", () => {
   for (const initial of [["A", "B"], ["A", "B", "C"], ["A", "B", "C", "D"]]) {
-    const s = quiz(), originalBallot = s.quiz.ballotId;
+    const s = quiz(), originalBallot = s.quiz.ballotId, originalQuiz = s.quiz.id;
     vote(s, initial);
     tick(s, now + 30000);
     assert.equal(s.phase, "answering");
     assert.equal(s.quiz.revote, true);
-    assert.equal(s.quiz.endsAt, now + 45000);
+    assert.equal(s.quiz.endsAt, now + 60000);
+    assert.notEqual(s.quiz.id, originalQuiz);
+    assert.equal(s.quiz.question.id, "replacement-test");
     assert.notEqual(s.quiz.ballotId, originalBallot);
-    assert.deepEqual(s.quiz.allowedOptions, initial);
+    assert.deepEqual(s.quiz.allowedOptions, ["A", "B", "C", "D"]);
     assert.deepEqual(s.quiz.answers, {});
     assert.equal(publicState(s, player("outside")).quiz.question.answer, undefined);
     assert.equal(publicState(s, player("p0")).quiz.myAnswer, null);
     assert.throws(() => command(s, player("outside"), "answer", { option: "A" }, now + 30001), /当前队伍/);
-    if (initial.length < 4) assert.throws(() => command(s, player("p0"), "answer", { option: "D" }, now + 30001), /并列的选项/);
-    vote(s, initial, now + 30002);
-    tick(s, now + 45000);
+    assert.throws(() => command(s, player("p0"), "answer", { option: "A", ballotId: originalBallot }, now + 30001), /题目已更新/);
+    command(s, player("p0"), "answer", { option: "D", ballotId: s.quiz.ballotId }, now + 30002);
+    vote(s, ["C", "D"], now + 30003);
+    tick(s, now + 60000);
     assert.equal(s.phase, "quiz_closed");
     assert.equal(s.events.filter((e) => e.type === "quiz_revote").length, 1);
-    command(s, host, "reveal", {}, now + 45001);
-    assert.equal(s.quiz.result.tiedAccepted, true);
-    assert.equal(s.quiz.result.correct, true);
-    assert.throws(() => command(s, player("p0"), "answer", { option: "A" }, now + 45002), /截止/);
+    assert.deepEqual(s.usedQuestions, ["tie-test", "replacement-test"]);
+    assert.equal(s.events.filter((e) => e.type === "quiz_start").length, 2);
+    command(s, host, "reveal", {}, now + 60001);
+    assert.equal(s.quiz.result.tie, true);
+    assert.equal(s.quiz.result.correct, false);
+    tick(s, s.transitionAt);
+    assert.equal(s.teams.east.position, 4);
+    assert.throws(() => command(s, player("p0"), "answer", { option: "A" }, now + 60002), /截止/);
   }
 });
 
-test("the accepted revote tie grants the normal tile reward even if the correct option was eliminated", () => {
-  const s = quiz();
-  vote(s, ["B", "C"]);
-  command(s, host, "closeQuiz", {}, now + 100);
-  vote(s, ["B", "C"], now + 101);
-  command(s, host, "closeQuiz", {}, now + 102);
-  command(s, host, "reveal", {}, now + 103);
-  assert.equal(s.quiz.result.correctAnswer, "A");
-  assert.equal(s.quiz.result.correct, true);
-  tick(s, s.transitionAt);
-  assert.equal(s.teams.east.position, 7);
+test("top ties excluding the correct answer are wrong immediately and never start a replacement", () => {
+  for (const options of [["B", "C"], ["B", "C", "D"], ["A", "B", "B", "C", "C"]]) {
+    const s = quiz(), ballot = s.quiz.ballotId;
+    vote(s, options);
+    command(s, host, "closeQuiz", {}, now + 100);
+    assert.equal(s.phase, "quiz_closed");
+    assert.equal(s.quiz.ballotId, ballot);
+    assert.equal(s.quiz.revote, false);
+    command(s, host, "reveal", {}, now + 101);
+    assert.equal(s.quiz.result.correctAnswer, "A");
+    assert.equal(s.quiz.result.correct, false);
+    assert.equal(s.events.filter((e) => e.type === "quiz_revote").length, 0);
+    tick(s, s.transitionAt);
+    assert.equal(s.teams.east.position, 4);
+  }
 });
 
-test("a unique revote answer is judged normally, and empty revotes never receive a free reward", () => {
-  for (const final of [[], ["B"], ["A"]]) {
+test("only a uniquely highest correct replacement answer wins; wrong, tied and empty ballots do not", () => {
+  for (const [final, correct] of [
+    [[], false], [["B"], false], [["A"], false], [["C"], true],
+    [["C", "C", "B"], true], [["C", "C", "A", "B", "D"], true],
+    [["C", "D"], false], [["A", "B"], false], [["A", "B", "C", "D"], false],
+  ]) {
     const s = quiz();
     vote(s, ["A", "B"]);
     command(s, host, "closeQuiz", {}, now + 10);
     vote(s, final, now + 11);
     command(s, host, "closeQuiz", {}, now + 12);
     command(s, host, "reveal", {}, now + 13);
-    assert.equal(s.quiz.result.correct, final[0] === "A");
-    assert.equal(s.quiz.result.tiedAccepted, false);
+    assert.equal(s.quiz.result.correct, correct);
+    tick(s, s.transitionAt);
+    assert.equal(s.teams.east.position, correct ? 7 : 4);
   }
 });
 
@@ -79,7 +97,9 @@ test("30/30/20/20 uses raw highest counts, and lower ties do not trigger revotin
   const s = quiz();
   vote(s, ["A", "A", "A", "B", "B", "B", "C", "C", "D", "D"]);
   command(s, host, "closeQuiz", {}, now + 10);
-  assert.deepEqual(s.quiz.allowedOptions, ["A", "B"]);
+  assert.equal(s.quiz.question.id, "replacement-test");
+  assert.deepEqual(s.quiz.firstRound.counts, { A: 3, B: 3, C: 2, D: 2 });
+  assert.deepEqual(s.quiz.allowedOptions, ["A", "B", "C", "D"]);
   const other = quiz();
   vote(other, ["A", "A", "B", "C", "D"]);
   command(other, host, "closeQuiz", {}, now + 10);
@@ -87,7 +107,7 @@ test("30/30/20/20 uses raw highest counts, and lower ties do not trigger revotin
   assert.equal(other.quiz.revote, false);
 });
 
-test("pause, serialized reload and resume preserve the revote deadline and ballot identity", () => {
+test("pause, serialized reload and resume preserve the fresh-question deadline and ballot identity", () => {
   let s = quiz();
   vote(s, ["A", "B"]);
   command(s, host, "closeQuiz", {}, now + 10);
@@ -99,6 +119,30 @@ test("pause, serialized reload and resume preserve the revote deadline and ballo
   assert.equal(s.quiz.endsAt, deadline + 1000);
   assert.equal(s.quiz.ballotId, ballot);
   assert.equal(s.quiz.revote, true);
+});
+
+test("an exhausted bank waits for a new unused question and preserves the one-replacement limit", () => {
+  const s = quiz();
+  s.questions = s.questions.filter((q) => q.id === "tie-test");
+  vote(s, ["A", "B"]);
+  command(s, host, "closeQuiz", {}, now + 10);
+  assert.equal(s.phase, "quiz_ready");
+  assert.equal(s.quiz.replacementPending, true);
+  assert.equal(publicState(s, player("p0")).quiz.replacementPending, true);
+  assert.throws(() => command(s, host, "startQuiz", {}, now + 11), /已用完/);
+  assert.throws(() => command(s, host, "reveal", {}, now + 11), /先结束答题/);
+  command(s, host, "saveQuestion", { tile: 8, text: "其他格子的题", options: { A: "甲", B: "乙", C: "丙", D: "丁" }, answer: "A" }, now + 12);
+  assert.throws(() => command(s, host, "startQuiz", {}, now + 13), /已用完/);
+  command(s, host, "saveQuestion", { id: "fresh", tile: 0, text: "补充的全新题", options: { A: "甲", B: "乙", C: "丙", D: "丁" }, answer: "A" }, now + 14);
+  command(s, host, "startQuiz", {}, now + 15);
+  assert.equal(s.quiz.question.id, "fresh");
+  assert.equal(s.quiz.revote, true);
+  assert.equal(s.quiz.endsAt, now + 30015);
+  vote(s, ["A", "B"], now + 16);
+  command(s, host, "closeQuiz", {}, now + 17);
+  command(s, host, "reveal", {}, now + 18);
+  assert.equal(s.quiz.result.correct, false);
+  assert.equal(s.events.filter((e) => e.type === "quiz_revote").length, 1);
 });
 
 test("percentages use submitted votes, handle no answers, preserve true ties and distinguish close counts", () => {

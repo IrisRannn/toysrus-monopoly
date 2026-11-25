@@ -258,7 +258,7 @@ export default function (plan) {
       observed.set(ballot, entry);
       sentAnswers.add(1);
       answerCount++;
-      socket.send(`42${id}${JSON.stringify(["command", { type: "answer", payload: { option } }])}`);
+      socket.send(`42${id}${JSON.stringify(["command", { type: "answer", payload: { option, ballotId: ballot } }])}`);
     }, Math.random() * SPREAD);
   }
   try {
