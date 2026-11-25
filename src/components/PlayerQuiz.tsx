@@ -12,6 +12,12 @@ export default function PlayerQuiz({ game, state: s, onSubmitted }: {
   const quiz = s.quiz;
   useEffect(() => setChoice(quiz?.myAnswer || ""), [quiz?.ballotId, quiz?.myAnswer]);
   if (!quiz) return null;
+  if (quiz.replacementPending) return (
+    <section className="mobile-card quiz-card">
+      <h2>平票换题</h2>
+      <p>等待主持人补充新题并开始加赛，本题仍由{s.teams[s.currentTeam].name}作答。</p>
+    </section>
+  );
   const currentTeam = s.teams[s.currentTeam];
   const myTurn = s.currentTeam === s.me?.team;
   const canAnswer = myTurn && s.phase === "answering" && s.status === "running" && now < quiz.endsAt;
@@ -24,7 +30,7 @@ export default function PlayerQuiz({ game, state: s, onSubmitted }: {
         <Countdown state={s} offset={game.offset} />
       </div>
       <h2>{quiz.question.text}</h2>
-      {quiz.revote && <p className="quiz-revote"><b>平票加投</b> · 仅{quiz.allowedOptions.join("、")}选项，重新选择后提交</p>}
+      {quiz.revote && <p className="quiz-revote"><b>平票换题</b> · 全新题目，四个选项重新作答；再次平票不前进。</p>}
       <p className="quiz-audience-note">
         {myTurn ? "轮到本队答题，截止前可以修改答案。" : `本题由${currentTeam.name}作答。`}
       </p>
@@ -51,7 +57,7 @@ export default function PlayerQuiz({ game, state: s, onSubmitted }: {
             className="primary wide"
             disabled={!choice || game.busy || !game.connected}
             onClick={async () => {
-              if (await game.cmd("answer", { option: choice })) onSubmitted?.();
+              if (await game.cmd("answer", { option: choice, ballotId: quiz.ballotId })) onSubmitted?.();
             }}
           >
             {game.pendingCommand === "answer"
@@ -84,13 +90,15 @@ export default function PlayerQuiz({ game, state: s, onSubmitted }: {
           }
         >
           <b>
-            {quiz.result.tiedAccepted ? "加投仍平票，按答对奖励！" : quiz.result.correct
+            {quiz.result.correct
               ? "答对了，向前出发！"
+              : quiz.result.tie
+                ? "最高票并列，原地不动。"
               : "未答对，下一次再接再厉。"}
           </b>
           <p>
             正确答案 {quiz.result.correctAnswer} · 本队选择{" "}
-            {quiz.result.majority || (quiz.result.tie ? "加投最高票并列" : "无人提交")}
+            {quiz.result.majority || (quiz.result.tie ? "最高票并列" : "无人提交")}
           </p>
           <p>{quiz.question.explanation}</p>
         </div>
