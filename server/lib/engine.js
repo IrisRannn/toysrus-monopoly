@@ -197,25 +197,62 @@ export function upgradeFirstWinner(s, now = Date.now()) {
   if (s.phase === "moving" && s.teams[s.currentTeam].finishOrder === 1) return false;
   return celebrateFirstWinner(s, now);
 }
+function startBallot(s, question, seconds, now, actor = "host", firstRound = null) {
+  s.quiz = {
+    id: randomUUID(),
+    tile: s.teams[s.currentTeam].position,
+    question: clone(question),
+    answers: {},
+    revote: !!firstRound,
+    firstRound,
+    ballotId: randomUUID(),
+    allowedOptions: ["A", "B", "C", "D"],
+    durationMs: seconds * 1000,
+    startedAt: now,
+    endsAt: now + seconds * 1000,
+    result: null,
+  };
+  s.usedQuestions.push(question.id);
+  s.usedQuestionKeys = [...usedQuestionKeys(s)];
+  s.phase = "answering";
+  s.transitionAt = null;
+  s.undo = null;
+  event(s, "quiz_start", `${firstRound ? "换题加赛" : "开始答题"} · ${question.text} · ${seconds}秒`, actor, {
+    questionId: question.id,
+    tile: s.quiz.tile,
+    team: s.currentTeam,
+    round: s.round,
+    turnId: s.turnId,
+  });
+}
+function needsReplacement(q, result) {
+  return !q.revote && result.tie &&
+    result.counts[q.question.answer] === Math.max(...Object.values(result.counts));
+}
 function closeBallot(s, now, actor = "system") {
   const q = s.quiz;
   const result = tally(q.answers, q.question.answer);
-  if (!q.revote && result.tie) {
-    const maximum = Math.max(...Object.values(result.counts));
-    q.allowedOptions = Object.keys(result.counts).filter((key) => result.counts[key] === maximum);
-    q.firstRound = { counts: result.counts, submitted: result.submitted };
-    q.revote = true;
-    q.ballotId = randomUUID();
-    q.answers = {};
-    q.startedAt = now;
-    q.endsAt = now + 15000;
-    s.phase = "answering";
-    s.transitionAt = null;
-    event(s, "quiz_revote", `最高票并列，${q.allowedOptions.join("、")}选项加投15秒`, actor);
+  if (needsReplacement(q, result)) {
+    const firstRound = { questionId: q.question.id, counts: result.counts, submitted: result.submitted };
+    const seconds = (q.durationMs || q.endsAt - q.startedAt) / 1000;
+    const available = availableQuestions(s, q.tile ?? s.teams[s.currentTeam].position);
+    event(s, "quiz_revote", "正确答案位于并列最高票中，换一道全新题目加赛；再次平票不前进", actor);
+    if (available.length) {
+      startBallot(s, available[randomInt(available.length)], seconds, now, actor, firstRound);
+    } else {
+      Object.assign(q, {
+        firstRound, revote: true, replacementPending: true,
+        ballotId: randomUUID(), allowedOptions: ["A", "B", "C", "D"],
+        durationMs: seconds * 1000, answers: {}, endsAt: now,
+      });
+      s.phase = "quiz_ready";
+      s.transitionAt = null;
+      event(s, "quiz_replacement_pending", "换题加赛暂无未使用的新题，请主持人补充题目后开始加赛", actor);
+    }
   } else {
     s.phase = "quiz_closed";
     s.transitionAt = null;
-    event(s, "quiz_close", q.revote ? "加投已结束，等待公布" : "答题已结束，等待公布", actor);
+    event(s, "quiz_close", q.revote ? "换题加赛已结束，等待公布" : "答题已结束，等待公布", actor);
   }
 }
 function rosterRepresentative(s, team) {
@@ -622,47 +659,20 @@ export function command(
       ? available.find((q) => q.id === p.questionId)
       : available[randomInt(available.length)];
     requireThat(question, "题目不属于当前格或已使用");
-    const seconds = Number(p.seconds ?? s.settings.answerSeconds);
+    const firstRound = s.quiz?.replacementPending ? s.quiz.firstRound : null;
+    const seconds = Number(p.seconds ?? (firstRound ? s.quiz.durationMs / 1000 : s.settings.answerSeconds));
     requireThat(
       Number.isInteger(seconds) && seconds >= 5 && seconds <= 300,
       "答题时间为5–300秒",
     );
-    s.quiz = {
-      id: randomUUID(),
-      tile: current().position,
-      question: clone(question),
-      answers: {},
-      revote: false,
-      ballotId: randomUUID(),
-      allowedOptions: ["A", "B", "C", "D"],
-      startedAt: now,
-      endsAt: now + seconds * 1000,
-      result: null,
-    };
-    s.usedQuestions.push(question.id);
-    s.usedQuestionKeys = [...usedQuestionKeys(s)];
-    s.phase = "answering";
-    s.undo = null;
-    record(
-      s,
-      "quiz_start",
-      `开始答题 · ${question.text} · ${seconds}秒`,
-      "host",
-      {
-        questionId: question.id,
-        tile: current().position,
-        team: s.currentTeam,
-        round: s.round,
-        turnId: s.turnId,
-      },
-    );
+    startBallot(s, question, seconds, now, "host", firstRound);
   } else if (type === "answer") {
     requireThat(!host, "主持人不能代替员工投票");
     running();
     requireThat(s.phase === "answering" && now < s.quiz.endsAt, "答题已截止");
     requireThat(player.team === s.currentTeam, "仅当前队伍员工可参与本题");
     requireThat(["A", "B", "C", "D"].includes(p.option), "无效选项");
-    requireThat((s.quiz.allowedOptions || ["A", "B", "C", "D"]).includes(p.option), "本次加投仅可选择并列的选项");
+    requireThat(!p.ballotId || p.ballotId === s.quiz.ballotId, "题目已更新，请为新题重新提交答案");
     s.quiz.answers[player.id] = { option: p.option, at: now };
     s.undo = null;
     record(s, "answer", `${player.nickname}提交或更新答案`, player.id, {
@@ -678,12 +688,11 @@ export function command(
     running();
     requireThat(s.phase === "quiz_closed", "请先结束答题");
     const result = tally(s.quiz.answers, s.quiz.question.answer);
-    if (!s.quiz.revote && result.tie) {
+    if (needsReplacement(s.quiz, result)) {
       closeBallot(s, now, "host");
       return;
     }
-    const tiedAccepted = !!s.quiz.revote && result.tie && result.submitted > 0;
-    s.quiz.result = { ...result, correct: result.correct || tiedAccepted, tiedAccepted };
+    s.quiz.result = result;
     s.phase = "revealed";
     s.transitionAt = now + PRESENTATION_MS;
     if (s.quiz.result.correct)
@@ -692,7 +701,7 @@ export function command(
     record(
       s,
       "reveal",
-      `公布答案：${s.quiz.result.majority || (tiedAccepted ? "加投仍平票，按答对奖励" : "无人作答")} · ${s.quiz.result.correct ? "答对" : "未答对"}`,
+      `公布答案：${s.quiz.result.majority || (result.tie ? "最高票并列" : "无人作答")} · ${s.quiz.result.correct ? "答对" : "未答对"}`,
     );
   } else if (type === "applyAnswer") {
     hostOnly();
@@ -1054,6 +1063,7 @@ export function publicState(s, actor, online = new Set(), shared = null) {
           endsAt: q.endsAt,
           ballotId: q.ballotId || q.id,
           revote: !!q.revote,
+          replacementPending: !!q.replacementPending,
           allowedOptions: q.allowedOptions || ["A", "B", "C", "D"],
           submitted: Object.keys(q.answers).length,
           counts: tally(q.answers, q.question.answer).counts,
