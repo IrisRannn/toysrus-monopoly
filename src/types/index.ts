@@ -51,6 +51,7 @@ export interface Quiz {
   id: string;
   ballotId: string;
   revote: boolean;
+  replacementPending: boolean;
   allowedOptions: string[];
   tile: number;
   question: Question;
@@ -67,7 +68,6 @@ export interface Quiz {
     tie: boolean;
     correct: boolean;
     correctAnswer: string;
-    tiedAccepted?: boolean;
   };
 }
 export interface Prize {
