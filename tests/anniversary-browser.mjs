@@ -94,6 +94,10 @@ try {
   await command("reset", { confirm: EVENT_ROOM_CODE });
   await command("setOrder", { order: ["shanghai", "east", "central", "north", "west"] });
   await command("saveQuestion", { id: "browser-public-question", tile: 0, text: "全员观看验收题：请选择甲", options: { A: "甲", B: "乙", C: "丙", D: "丁" }, answer: "A", explanation: "揭晓后才公开的解析" });
+  await command("saveQuestion", { id: "browser-replacement-question", tile: 0, text: "换题加赛验收题：请选择新甲", options: { A: "新甲", B: "新乙", C: "新丙", D: "新丁" }, answer: "A", explanation: "揭晓后才公开的解析" });
+  await store.mutate(EVENT_ROOM_CODE, (state) => {
+    state.usedQuestions = state.questions.filter((q) => !["browser-public-question", "browser-replacement-question"].includes(q.id)).map((q) => q.id);
+  });
   await command("start");
   await command("physicalDice", { value: 4 });
   await store.mutate(EVENT_ROOM_CODE, (state) => {
@@ -147,10 +151,13 @@ try {
   await command("closeQuiz");
   for (const p of players) {
     await p.locator(".quiz-revote").waitFor();
-    assert.equal(await p.locator(".answer-options button").count(), 2);
+    await waitText(p.locator(".quiz-card h2"), "换题加赛验收题：请选择新甲");
+    assert.equal(await p.locator(".answer-options button").count(), 4);
     await p.getByLabel("A选项0%", { exact: true }).waitFor();
     assert.equal(await p.getByText("揭晓后才公开的解析", { exact: true }).count(), 0);
   }
+  await first.screenshot({ path: path.join(output, "replacement-question-player.png") });
+  await screen.screenshot({ path: path.join(output, "replacement-question-screen.png") });
   await option(first, "A").click();
   await first.getByRole("button", { name: "提交答案", exact: true }).click();
   await option(second, "B").click();
@@ -160,7 +167,7 @@ try {
   await first.getByRole("button", { name: "更新我的答案", exact: true }).waitFor({ state: "detached" });
   await command("reveal");
   for (const p of players) await waitText(p.locator(".quiz-result"), "正确答案 A");
-  for (const p of players) await waitText(p.locator(".quiz-result"), "加投仍平票，按答对奖励");
+  for (const p of players) await waitText(p.locator(".quiz-result"), "最高票并列，原地不动");
   await command("pause");
   const beforeRestart = await store.read(EVENT_ROOM_CODE);
   const restart = host.getByRole("button", { name: "重新开始游戏", exact: true });
@@ -260,7 +267,7 @@ try {
   assert.deepEqual(errors, []);
   console.log("PASS all-team live question and option counts, private answers, same-team-only votes, replacement votes, cutoff, reveal, landscape and portrait");
   console.log("PASS separated restart controls, cancel and wrong-room protection, confirmed reset preserving employees, questions and audio, mobile access and clean player copy");
-  console.log("PASS one revote, accepted second tie, first-winner freeze, one-time victory sound, silent late join, host-controlled five-team awards and three second prizes");
+  console.log("PASS one fresh four-option replacement, no reward for a second tie, first-winner freeze, one-time victory sound, silent late join, host-controlled five-team awards and three second prizes");
   console.log(`Screenshots: ${output}`);
 } finally {
   for (const context of contexts) await context.close();
